@@ -1,0 +1,29 @@
+:root{
+    --default-scrollbar-color:rgb(48, 48, 48, 0.1);
+
+
+
+    --darker-color:#000000;
+    --dark-gray:rgb(100, 99, 99);
+    --primary-color:#16120B;
+    --secondary-color:#747473;
+    --readonly-color:rgba(22, 18, 11,0.1);
+
+    --light-color:#E6E5E5;
+    --columnName-color:#6d5656;
+
+    --success-color:#24B700;
+
+    --error-color:#F03226;
+    --light-error-color:rgba(240, 50, 38, 0.75);
+
+    --accent-color:rgb(235, 153, 11);
+    --light-accent-color:#F7CC83;
+    --light-light-accent-color:rgba(247, 204, 131, 0.6);
+}
+
+
+
+
+
+

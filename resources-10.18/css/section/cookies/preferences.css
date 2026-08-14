@@ -1,0 +1,87 @@
+#cookiePreferenceContainer, #cookiePreferenceContainer.open{
+    z-index:100;
+    position:fixed;
+    left:0;
+    bottom:20px;
+    background-color: var(--light-color);
+    box-shadow: 0 0 2px rgba(63, 63, 63, 0.5);
+    width:90%;
+    max-width:400px;
+    margin-left:20px;
+    border-radius:10px;
+    padding:20px;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap:15px;
+    cursor:default;
+}
+
+#cookiePreferenceContainer p{
+    line-height: 1.3rem;
+    text-align: left;
+}
+
+
+#cookiePreferenceContainer button{
+    height:40px;
+    border-radius: 5px;
+    border:none;
+    background-color: var(--primary-color);
+    color:white;
+}
+
+#cookiePreferenceContainer button.refuse{
+    background-color: transparent;
+    color:var(--darker-color);
+    border:1px solid var(--darker-color);
+}
+
+#cookiePreferenceContainer button.accept:hover{
+    cursor:pointer;
+    background-color: var(--darker-color);
+    color:white;
+}
+
+#cookiePreferenceContainer button.refuse:hover{
+    cursor:pointer;
+    background-color: var(--darker-color);
+    border:none;
+    color:white;
+}
+
+#cookiePreferenceContainer.close{
+    width:50px;
+    height:50px;
+    padding:5px;
+}
+
+#cookiePreferenceContainer.close:hover{
+    filter: brightness(0.9);
+    cursor:pointer;
+}
+
+#cookiePreferenceContainer.close:hover #cookieLogo{
+    transform: rotate(10deg);
+    transition: ease-in 0.1s;
+}
+
+#cookiePreferenceContainer #cookieLogo{
+    width:50px;
+    margin:0 auto;
+}
+
+#cookiePreferenceContainer.close #cookieLogo{
+    width:100%;
+}
+
+#cookiePreferenceContainer.close p, #cookiePreferenceContainer.close a, #cookiePreferenceContainer.close button{
+    display: none;
+}
+
+
+
+
+
+

@@ -1,0 +1,44 @@
+RewriteEngine On
+
+# Forcer HTTPS (gère le domaine dynamiquement)
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Empêche de lister les element d'un dossier
+Options -Indexes
+IndexIgnore *
+
+# Redirection vers les pages d'erreur (en localhost)
+ErrorDocument 400 https://localhost/laboutiquec.com/cc/400
+ErrorDocument 401 https://localhost/laboutiquec.com/cc/401
+ErrorDocument 403 https://localhost/laboutiquec.com/cc/403
+ErrorDocument 404 https://localhost/laboutiquec.com/cc/404
+ErrorDocument 405 https://localhost/laboutiquec.com/cc/405
+ErrorDocument 500 https://localhost/laboutiquec.com/cc/500
+ErrorDocument 503 https://localhost/laboutiquec.com/cc/503
+
+# Redirection vers les pages d'erreur
+# ErrorDocument 400 https://laboutiquec.com/cc/400
+# ErrorDocument 401 https://laboutiquec.com/cc/401
+# ErrorDocument 403 https://laboutiquec.com/cc/403
+# ErrorDocument 404 https://laboutiquec.com/cc/404
+# ErrorDocument 405 https://laboutiquec.com/cc/405
+# ErrorDocument 500 https://laboutiquec.com/cc/500
+# ErrorDocument 503 https://laboutiquec.com/cc/503
+
+# Redirection si le fichier ou dossier n'existe pas
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Redirection pour localhost # Changer le laboutiquec.com/cc par le dev directory
+RewriteRule ^(.*)$ /laboutiquec.com/cc/index.php [QSA,L]
+
+# Redirection en production
+# RewriteRule ^(.*)$ /cc/index.php [QSA,L]
+
+
+
+
+
+
+

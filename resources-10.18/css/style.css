@@ -1,0 +1,166 @@
+@import "theme.css";
+
+*{
+    font-family: Arial, Helvetica, sans-serif;
+    font-size:16px;
+    line-height: 22px;
+    box-sizing: border-box;
+    font-weight: unset;
+    font-style: unset;
+    border:unset;
+    background-color: unset;
+    outline: unset;
+    margin:unset;
+    padding: unset;
+    color:var(--primary-color);
+    scrollbar-width: thin;
+    scrollbar-color:  var(--default-scrollbar-color) transparent;
+}
+
+body{
+    background-color: white;
+    width:100%;
+    margin:0 auto;
+}
+
+details{
+    cursor:pointer;
+}
+summary {
+  /* 1. Force le retrait de la puce standard */
+  list-style: none; 
+  display: flex; 
+  align-items: center;
+  cursor: pointer;
+}
+
+/* 2. Pour Chrome/Safari (Anciens & Nouveaux) */
+summary::-webkit-details-marker {
+  display: none !important;
+}
+
+/* 3. Pour Firefox et les standards récents */
+summary::marker {
+  content: "";
+  display: none !important;
+}
+
+summary::before {
+  content: "";
+  /* Plus besoin de inline-block, Flexbox gère l'affichage */
+  width: 10px;
+  height: 10px;
+  margin-right: 8px;
+  
+  /* Votre rotation */
+  transform: rotate(90deg);
+
+  /* Gestion de l'image */
+  background-image: url("./../../static-resources/default/icons/black/triangle.png");
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  
+  /* Optionnel : permet de s'assurer que l'icône ne s'écrase pas */
+  flex-shrink: 0;
+  transition: transfort 0.2s ease;
+}
+
+details[open] summary::before {
+  transform: rotate(180deg);
+}
+
+h1{
+    font-size: 1.5rem;
+    line-height: 2rem;
+    font-weight: bold;
+}
+
+strong{
+    font-weight: bold;
+}
+
+.textAlignCenter{
+    text-align: center;
+}
+
+a{
+    text-decoration: none;
+    text-underline-offset: 4px;
+    text-decoration-thickness: 1px;
+    cursor: pointer;
+}
+
+a.linkVisible{
+    text-decoration: underline;
+    text-underline-offset: 6px;
+    text-decoration-thickness: 1px;
+    text-decoration-color: var(--secondary-color);
+    cursor: pointer;
+}
+a:hover{
+     text-decoration: underline;
+    text-decoration-thickness: 1.5px;
+}
+
+button{
+    background-color: var(--primary-color);
+    color:white;
+    height:50px;
+    padding:10px 20px;
+    border-radius: 5px;
+}
+
+button.secondary{
+    background-color: transparent;
+    border:1px solid var(--secondary-color);
+    color:var(--secondary-color);
+}
+
+button.fitContent{
+    width:fit-content;
+}
+
+button.secondary:hover{
+    background-color:var(--secondary-color);
+    color:white;
+    cursor: pointer;
+}
+
+button:hover:not(button.loading, button.secondary), button.active{
+    background-color: var(--accent-color);
+    cursor:pointer;
+}
+
+button.loading{
+    filter: opacity(0.5);
+    color:transparent;
+    cursor:not-allowed;
+}
+
+button.loading::after {
+    pointer-events: none;
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 20px;
+    height: 20px; 
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #ffffff;
+    border-radius: 50%; 
+    animation: spin 1.2s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: translate(-50%, -50%) rotate(360deg); /* Fait tourner le cercle */
+    }
+    
+}
+
+
+
+
+

@@ -1,0 +1,11 @@
+.env
+static-resources/
+vendor/
+Fiche technique.afpub
+Fiche technique.afpub~lock~
+google-merchant.xml
+produits.afdesign
+produits.afdesign~lock~
+sunwxfyt_cc.sql
+sitemaps.xml
+logs/

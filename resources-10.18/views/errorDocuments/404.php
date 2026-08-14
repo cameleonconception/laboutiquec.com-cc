@@ -1,0 +1,44 @@
+<?php
+    http_response_code(403);
+
+    require_once('classes/Layouts/Header.php');
+
+    $HEADER = new Header();
+    $HEADER->setTitle('404');
+    $HEADER->addCssFile('style.css');
+    $HEADER->addCssFile('/section/nav/nav.css');
+
+    $activePage = '';
+
+    require_once($absoluteResources.'/layouts/header.php');
+    require_once($absoluteResources.'/layouts/nav.php');
+
+    if(isset($_GET['message'])){
+        $message = htmlspecialchars($_GET['message']);
+    }
+?>
+
+<main class="homePage">
+    <div class="errorDocumentContainer">
+        <h1>Page introuvable</h1>
+        <p>Nous sommes désolés, nous n'avons pas pu trouver la page que vous cherchez. Veuillez vérifier l'URL et réessayer.</p>
+        <?php 
+            if(isset($message) && !empty($message)){
+                echo 'Message : ' . $message;
+            }
+        ?>
+        <div class="btnContainer">
+            <button onclick="window.location.href='<?php echo $underLevelString?>accueil'">Revenir à l'accueil</button>
+        </div>
+    </div>
+</main>
+
+<?php
+    require_once($absoluteResources.'/layouts/footer.php');
+?>
+
+
+
+
+
+

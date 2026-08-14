@@ -1,0 +1,213 @@
+
+/* FOOTER */
+
+footer{
+    background-color: var(--primary-color);
+    padding:100px 100px 25px 100px;
+    color:white !important;
+    display: flex;
+    flex-direction: column;
+    border-top: 4px solid var(--accent-color);
+}
+
+
+img.promoBanner{
+    margin:0 auto 75px;
+    width:80%;
+}
+
+img.promoBanner:hover{
+box-shadow: 0px 0px 15px var(--accent-color);
+border:1px solid var(--accent-color);
+cursor:pointer;
+
+}
+
+footer #sitemap{
+    display: grid;
+    grid-template-columns: repeat(4,1fr);
+    margin:0 auto 75px;
+    width:80%;
+    color:white;
+}
+
+footer #sitemap a{
+    color:white;
+}
+@media only screen and (max-width: 1440px) {
+
+    footer{
+        padding:100px 75px 25px 75px;
+    }
+
+    #footerLogo{
+        display: none;
+    }
+
+    footer #sitemap{
+        width:90%;
+        grid-template-columns: repeat(2,1fr);
+        gap:75px;
+    }
+
+    img.promoBanner{
+    margin:0 auto 75px;
+    width:90%;
+}
+
+}
+
+@media only screen and (max-width: 725px) {
+    footer{
+        padding:100px 50px 25px 50px;
+    }
+
+    footer #sitemap{
+        grid-template-columns: repeat(1,1fr);
+        gap:50px;
+    }
+
+}
+
+footer h3{
+    color:white !important;
+    font-size: 1.1rem;
+}
+
+footer a, footer span{
+    font-size: 0.9rem;
+}
+
+footer #sitemap div{
+    display: flex;
+    flex-direction: column;
+    gap:12px;
+    color:white;
+}
+
+footer #sitemap div div hr{
+    height:3px;
+    margin-top:-5px;
+    width:50px;
+    background-color: var(--dark-gray);
+}
+
+#copyright{
+    font-size: 0.8rem;
+    color:white;
+    text-align: center;
+    width:100%;
+}
+
+
+
+
+/**** REVIEWS *****/
+.reviews-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 90vw;
+    margin: 50px auto 0 ;
+}
+
+#reviewsContainer {
+    display: flex;
+    overflow-x: auto; /* Permet le scroll */
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory; /* Le scroll se cale sur les éléments */
+    scrollbar-width: none; /* Cache la scrollbar (Firefox) */
+    scroll-behavior: smooth; /* Scroll fluide */
+    padding: 0px 0 40px;
+}
+
+
+#reviewsContainer::-webkit-scrollbarr{
+    display: none;
+}
+
+.scroll-content {
+    display: flex;
+    gap: 20px;
+    padding: 20px; /* Espace aux extrémités */
+}
+
+
+
+.nav-arrow {
+    display: none; /* Caché par défaut */
+    position: absolute;
+    top: 45%;
+    transform: translateY(-50%);
+    z-index: 100;
+    background: white;
+    border: 1px solid #ddd;
+    padding:0;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    color:var(--primary-color);
+}
+
+.nav-arrow:hover {
+    color:white;
+}
+
+.nav-arrow.prev { left: -25px; }
+.nav-arrow.next { right: -25px; }
+
+@media (min-width: 900px) {
+    .nav-arrow { display: block; }
+}
+
+/* --- STYLE DE LA CARTE --- */
+.review-item {
+    width: 250px; /* Largeur fixe pour uniformité */
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 25px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08); /* Ombre douce */
+    border: 1px solid #f0f0f0;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    cursor: pointer;
+}
+
+.review-item:hover {
+    transform: translateY(-8px); /* Petit effet de soulèvement au survol */
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.review-item .name {
+    color: var(--primary-color);
+    font-size: 1rem;
+    pointer-events: none;
+    font-weight: 00;
+}
+
+
+.review-item .company {
+    color: var(--dark-gray);
+    font-size: 0.85rem;
+    pointer-events: none;
+}
+
+/* Style des étoiles */
+.review-item p.stars {
+    color: #FFD700; /* Couleur or pour les étoiles */
+    font-size: 1.2rem;
+    margin: 10px 0;
+    pointer-events: none;
+}
+
+.review-item p:last-child {
+    font-size: 0.85rem;
+    color: var(--dark-gray);
+    line-height: 1.4;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 4; /* Coupe le texte après 4 lignes si trop long */
+    -webkit-box-orient: vertical;
+}

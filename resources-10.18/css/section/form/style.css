@@ -1,0 +1,148 @@
+form{
+    display: flex;
+    text-align: left;
+    flex-direction: column;
+    gap:20px;
+    width:90%;
+    max-width: 700px;
+    margin:10px auto;
+    background-color: var(--light-color);
+    padding:30px 20px;
+    border-radius: 10px;
+    height:fit-content;
+    grid-area: form; 
+}
+
+label{
+    margin-bottom:-15px;
+}
+
+input, select, textarea, #creditCardContainer{
+    width: 100%;
+    min-height:30px;
+    background-color: white;
+    border-radius: 3px;
+    padding:10px;
+}
+
+textarea{
+    max-width:100%;
+    min-width:100%;
+}
+
+select{
+    height:50px;
+}
+
+span.error-message{
+    color:var(--error-color);
+    margin-top:-10px;
+}
+
+
+input:read-only:not([type="checkbox"], [type="file"]) {
+    background-color: var(--readonly-color);
+    color: var(--primary-color);
+    cursor: not-allowed;
+}
+
+#product-details-container input, #product-details-container select{
+    width: 100%;
+    min-height:30px;
+    background-color: white;
+    border:1px solid var(--secondary-color);
+    border-radius: 3px;
+    padding:10px;
+}
+
+@media screen and (max-width: 1040px) {
+    form{
+        width:100%;
+        max-width:unset;
+    }
+
+
+}
+
+#userInfosForm{
+    max-width: unset;
+}
+
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+    margin-bottom:3px;
+}
+
+/* L'input est maintenant positionné par-dessus le slider pour capter le clic */
+.switch input { 
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    margin: 0;
+    cursor: pointer;
+    z-index: 2; /* Passe devant le span */
+}
+
+.slider {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    -webkit-transition: .4s;
+    transition: .4s;
+    z-index: 1; /* Reste derrière l'input */
+    pointer-events: none; /* Le clic traverse le span */
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    -webkit-transition: .4s;
+    transition: .4s;
+}
+
+/* Sélectionne le slider quand l'input précédent est coché */
+input:checked + .slider {
+    background-color: var(--success-color);
+}
+
+input:focus + .slider {
+    box-shadow: 0 0 1px var(--success-color);
+}
+
+input:checked + .slider:before {
+    -webkit-transform: translateX(26px);
+    -ms-transform: translateX(26px);
+    transform: translateX(26px);
+}
+
+/* Rounded sliders */
+.slider.round {
+    border-radius: 34px;
+}
+
+.slider.round:before {
+    border-radius: 50%;
+}
+
+.flex-row{
+    display: flex;
+    flex-direction: row;
+    gap:10px;
+}
+
+
+
