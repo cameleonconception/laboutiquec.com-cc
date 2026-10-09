@@ -1,5 +1,6 @@
 let imagesToDelete = []; 
 let existingImageNames = []; // Tableau qui conserve la liste officielle des images existantes du produit
+let lastCheckedCheckbox = null;
 
 // --- FONCTIONS EXPOSÉES À WINDOW (DOIVENT ÊTRE EN HAUT) ---
 window.addNewEmptyVariantRow = function() {
@@ -654,6 +655,28 @@ function handleCellBulkEdit(fieldType, selectedRows) {
     });
 }
 
+function handleShiftSelect(e, currentCheckbox) {
+    // Si la touche Shift est appuyée et qu'une case a déjà été cliquée auparavant
+    if (e.shiftKey && lastCheckedCheckbox && lastCheckedCheckbox !== currentCheckbox) {
+        const checkboxes = Array.from(document.querySelectorAll('#variants-body .variant-checkbox'));
+        let inRange = false;
+
+        checkboxes.forEach(cb => {
+            // Activer/Désactiver la zone comprise entre le dernier clic et le clic actuel
+            if (cb === currentCheckbox || cb === lastCheckedCheckbox) {
+                inRange = !inRange;
+            }
+            if (inRange || cb === currentCheckbox || cb === lastCheckedCheckbox) {
+                // Donne à toutes les cases intermédiaire le même état (coché/décoché) que la case cliquée
+                cb.checked = currentCheckbox.checked;
+            }
+        });
+    }
+
+    // Mettre à jour la référence du dernier clic
+    lastCheckedCheckbox = currentCheckbox;
+}
+
 function renderRowContent(row, data) {
     let cleanPrice = String(data.price).replace('$', '').trim();
     let numericPrice = parseFloat(cleanPrice);
@@ -679,7 +702,10 @@ function renderRowContent(row, data) {
 
     const checkbox = row.querySelector('.variant-checkbox');
     if (checkbox) {
-        checkbox.onclick = (e) => e.stopPropagation();
+        checkbox.onclick = (e) => {
+            e.stopPropagation();
+            handleShiftSelect(e, checkbox); // Prise en charge de la sélection Shift + Clic
+        };
     }
 
     row.querySelector('.editBtn').onclick = (e) => {
