@@ -160,6 +160,95 @@ class Products
             return ['success' => false, 'message' => 'Erreur : ' . $e->getMessage()];
         }
     }
+
+// ---------------------------------------------------------
+    // DUPLIQUER UNE IMAGE DU PRODUIT SUR LE DISQUE ET EN BDD
+    // ---------------------------------------------------------
+    public function duplicateProductImage($productId, $sourceFileName)
+    {
+        $dbConnection = new Connection();
+        $pdo = $dbConnection->getPDO();
+
+        $productId = (int)$productId;
+        $sourceFileName = basename(trim($sourceFileName));
+
+        if ($productId <= 0 || empty($sourceFileName)) {
+            return ['success' => false, 'message' => 'Paramètres invalides pour la duplication d\'image.'];
+        }
+
+        try {
+            $pdo->beginTransaction();
+
+            // 1. Récupération du SKU et de la liste des images du produit
+            $stmt = $pdo->prepare("SELECT sku, imgNames FROM products WHERE id = ?");
+            $stmt->execute([$productId]);
+            $product = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$product) {
+                return ['success' => false, 'message' => 'Produit introuvable.'];
+            }
+
+            $sku = $product['sku'];
+            $imgNamesRaw = $product['imgNames'];
+
+            $imgList = [];
+            if (!empty($imgNamesRaw)) {
+                $decoded = is_array($imgNamesRaw) ? $imgNamesRaw : json_decode($imgNamesRaw, true);
+                if (is_array($decoded)) {
+                    $imgList = $decoded;
+                }
+            }
+
+            // 2. Génération du nouveau nom avec un nouveau timestamp
+            $lastDotIndex = strrpos($sourceFileName, '.');
+            $ext = ($lastDotIndex !== false) ? substr($sourceFileName, $lastDotIndex) : '';
+            $nameWithoutExt = ($lastDotIndex !== false) ? substr($sourceFileName, 0, $lastDotIndex) : $sourceFileName;
+
+            // Découpage pour remplacer le timestamp existant s'il y en a un
+            $parts = explode('-', $nameWithoutExt);
+            if (count($parts) >= 3 && is_numeric(end($parts))) {
+                array_pop($parts); // Retire l'ancien timestamp
+            }
+            $baseName = implode('-', $parts);
+            
+            // Nouveau nom du fichier copié (ex: Rouge-1-1711900000055.webp)
+            $newFileName = $baseName . '-' . round(microtime(true) * 1000) . $ext;
+
+            // 3. Copie physique du fichier sur le serveur
+            $basePath = dirname(__DIR__, 2);
+            $productDir = $basePath . "/static-resources/products/" . $sku . "/";
+            $sourceFilePath = $productDir . $sourceFileName;
+            $newFilePath = $productDir . $newFileName;
+
+            if (!file_exists($sourceFilePath)) {
+                return ['success' => false, 'message' => 'Le fichier source est introuvable sur le disque.'];
+            }
+
+            if (!copy($sourceFilePath, $newFilePath)) {
+                throw new \Exception("Échec lors de la copie physique du fichier.");
+            }
+
+            // 4. Insertion du nouveau nom dans le tableau des images BDD
+            $imgList[] = $newFileName;
+
+            $stmtUpdate = $pdo->prepare("UPDATE products SET imgNames = ? WHERE id = ?");
+            $stmtUpdate->execute([json_encode($imgList, JSON_UNESCAPED_UNICODE), $productId]);
+
+            $pdo->commit();
+
+            return [
+                'success'     => true,
+                'message'     => 'Image dupliquée avec succès.',
+                'newFileName' => $newFileName
+            ];
+
+        } catch (\Exception $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return ['success' => false, 'message' => 'Erreur : ' . $e->getMessage()];
+        }
+    }
 public function getProducts($page, $query, $categories, $colors) {
     $profile = new Profile();
     $userId = $profile->getUserInfo_id();
