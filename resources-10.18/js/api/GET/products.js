@@ -175,6 +175,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     <img onclick='window.location.href="./produits"' class='icons' src='static-resources/default/icons/black/reload.png'>
                 `;
 
+                const searchBarInput = document.querySelector('#searchBar');
+                if (searchBarInput) {
+                    searchBarInput.addEventListener('keydown', function(event) {
+                        if (event.key === 'Enter') {
+                            event.preventDefault();
+                            searchProduct();
+                        }
+                    });
+                }
+
 // --- 4. AFFICHAGE DES BADGES DE FILTRES ACTIFS (#ownedCategory) ---
                 const ownedCategory = document.querySelector('#ownedCategory');
                 if (ownedCategory) {
@@ -599,6 +609,7 @@ function addNewCategoryBadge(value, type) {
 
 // Fonction de recherche mise à jour pour lire les valeurs actuelles des inputs
 // Fonction de recherche mise à jour pour inclure à la fois la catégorie/couleur et le mot-clé textuel
+// Fonction de recherche mise à jour avec encodage sécurisé des caractères spéciaux et apostrophes
 function searchProduct() {
     let searchBar = document.querySelector('#searchBar');
     let searchBarValue = searchBar ? searchBar.value.trim() : "";
@@ -606,7 +617,7 @@ function searchProduct() {
     let checkedColors = [];
     let checkedCategories = [];
 
-    // Récupérer uniquement ce que l'utilisateur a coché manuellement
+    // Récupérer les filtres cochés
     document.querySelectorAll('input[type="checkbox"][data-type="colors"]:checked').forEach(color => {
         checkedColors.push(color.dataset.name);
     });
@@ -615,10 +626,13 @@ function searchProduct() {
         checkedCategories.push(categorie.dataset.name);
     });
 
-    // Envoi des filtres vers le contrôleur PHP
-    window.location.href = './produits?query=' + encodeURIComponent(searchBarValue) + 
-                           '&categories=' + encodeURIComponent(checkedCategories.join(',')) + 
-                           '&colors=' + encodeURIComponent(checkedColors.join(','));
+    // Encodage strict avec URLSearchParams pour gérer les apostrophes ('), espaces et caractères spéciaux sans cassure
+    const params = new URLSearchParams();
+    if (searchBarValue) params.set('query', searchBarValue);
+    if (checkedCategories.length > 0) params.set('categories', checkedCategories.join(','));
+    if (checkedColors.length > 0) params.set('colors', checkedColors.join(','));
+
+    window.location.href = './produits?' + params.toString();
 }
 
 /**

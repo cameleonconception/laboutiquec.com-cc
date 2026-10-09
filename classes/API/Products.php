@@ -203,18 +203,15 @@ public function getProducts($page, $query, $categories, $colors) {
     if (!empty($queryClean)) {
         $searchTerm = "%" . $queryClean . "%";
 
-        // Détecte les catégories dont le nom ressemble au texte recherché
         $stmtCat = $pdo->prepare("SELECT name FROM categories WHERE name LIKE ?");
         $stmtCat->execute([$searchTerm]);
         $detectedCategories = $stmtCat->fetchAll(PDO::FETCH_COLUMN);
 
-        // Détecte les couleurs dont le nom ressemble au texte recherché
         $stmtCol = $pdo->prepare("SELECT name FROM colors WHERE name LIKE ?");
         $stmtCol->execute([$searchTerm]);
         $detectedColors = $stmtCol->fetchAll(PDO::FETCH_COLUMN);
     }
 
-    // Fusion des filtres saisis et des filtres détectés
     $allCategoriesToSearch = array_unique(array_merge($categoriesClean, $detectedCategories));
     $allColorsToSearch = array_unique(array_merge($colorsClean, $detectedColors));
 
@@ -222,27 +219,50 @@ public function getProducts($page, $query, $categories, $colors) {
     // CONSTRUCTION DES CLAUSES ET DU CALCUL DU SCORE DE PERTINENCE
     // -------------------------------------------------------------------------
     $params = [];
+    $scoreParams = []; // Séparation des paramètres pour le calcul du score
     $searchConditions = [];
     $scoreCalculations = ["0"];
 
     // PRIORITÉ 1 : La Recherche Textuelle ($query)
     if (!empty($queryClean)) {
-        $searchParam = "%" . $queryClean . "%";
-        $searchConditions[] = "(
-            P.name LIKE ? 
-            OR P.description LIKE ? 
-            OR P.sku LIKE ? 
-            OR P.supplierId IN (SELECT id FROM suppliers WHERE name LIKE ?)
-        )";
-        array_push($params, $searchParam, $searchParam, $searchParam, $searchParam);
+        // Normalisation : remplacement des apostrophes et tirets par des espaces pour le découpage
+        $normalizedQuery = preg_replace('/[\'’\-\_]/u', ' ', $queryClean);
+        $words = array_filter(explode(' ', $normalizedQuery), fn($w) => mb_strlen(trim($w)) > 1);
 
-        // SCORE MAXIMAL : 500 points si le nom ou le SKU contient le texte
-        $scoreCalculations[] = "IF(P.name LIKE '$searchParam' OR P.sku LIKE '$searchParam', 500, 0)";
-        // SCORE SECONDAIRE : 200 points si la description contient le texte
-        $scoreCalculations[] = "IF(P.description LIKE '$searchParam', 200, 0)";
+        if (!empty($words)) {
+            $wordConditions = [];
+            foreach ($words as $word) {
+                $wordParam = "%" . $word . "%";
+                $wordConditions[] = "(
+                    P.name LIKE ? 
+                    OR P.description LIKE ? 
+                    OR P.sku LIKE ? 
+                    OR P.supplierId IN (SELECT id FROM suppliers WHERE name LIKE ?)
+                )";
+                array_push($params, $wordParam, $wordParam, $wordParam, $wordParam);
+            }
+            $searchConditions[] = "(" . implode(" AND ", $wordConditions) . ")";
+        } else {
+            $searchParam = "%" . $queryClean . "%";
+            $searchConditions[] = "(
+                P.name LIKE ? 
+                OR P.description LIKE ? 
+                OR P.sku LIKE ? 
+                OR P.supplierId IN (SELECT id FROM suppliers WHERE name LIKE ?)
+            )";
+            array_push($params, $searchParam, $searchParam, $searchParam, $searchParam);
+        }
+
+        // SCORE DE PERTINENCE
+        $fullSearchParam = "%" . $queryClean . "%";
+        $scoreCalculations[] = "IF(P.name LIKE ? OR P.sku LIKE ?, 500, 0)";
+        array_push($scoreParams, $fullSearchParam, $fullSearchParam);
+
+        $scoreCalculations[] = "IF(P.description LIKE ?, 200, 0)";
+        $scoreParams[] = $fullSearchParam;
     }
 
-    // PRIORITÉ 2 : Les Catégories (Optionnelles / Bonus)
+    // PRIORITÉ 2 : Les Catégories
     if (!empty($allCategoriesToSearch)) {
         $catPlaceholders = implode(',', array_fill(0, count($allCategoriesToSearch), '?'));
         $searchConditions[] = "P.id IN (
@@ -255,20 +275,18 @@ public function getProducts($page, $query, $categories, $colors) {
             $params[] = $catName; 
         }
 
-        // Bonus si la catégorie est directement cochée par l'utilisateur (50 points)
         if (!empty($categoriesClean)) {
             $catListSql = "'" . implode("','", array_map('addslashes', $categoriesClean)) . "'";
             $scoreCalculations[] = "IF(P.id IN (SELECT pc.product_id FROM product_category pc JOIN categories C ON pc.category_id = C.id WHERE C.name IN ($catListSql)), 50, 0)";
         }
 
-        // Petit bonus pour les catégories détectées automatiquement (15 points)
         if (!empty($detectedCategories)) {
             $catDetectedSql = "'" . implode("','", array_map('addslashes', $detectedCategories)) . "'";
             $scoreCalculations[] = "IF(P.id IN (SELECT pc.product_id FROM product_category pc JOIN categories C ON pc.category_id = C.id WHERE C.name IN ($catDetectedSql)), 15, 0)";
         }
     }
 
-    // PRIORITÉ 3 : Les Couleurs (Optionnelles / Bonus)
+    // PRIORITÉ 3 : Les Couleurs
     if (!empty($allColorsToSearch)) {
         $colorPlaceholders = implode(',', array_fill(0, count($allColorsToSearch), '?'));
         $searchConditions[] = "P.id IN (
@@ -281,14 +299,12 @@ public function getProducts($page, $query, $categories, $colors) {
             $params[] = $colorName; 
         }
 
-        // Bonus pour couleur sélectionnée explicitement (30 points)
         if (!empty($colorsClean)) {
             $colorListSql = "'" . implode("','", array_map('addslashes', $colorsClean)) . "'";
             $scoreCalculations[] = "IF(P.id IN (SELECT pscp.product_id FROM product_size_color_price pscp JOIN colors Cl ON pscp.color_id = Cl.id WHERE Cl.name IN ($colorListSql)), 30, 0)";
         }
     }
 
-    // Assemblage final des filtres
     if (!empty($searchConditions)) {
         $whereClauses[] = "(" . implode(" OR ", $searchConditions) . ")";
     }
@@ -303,6 +319,9 @@ public function getProducts($page, $query, $categories, $colors) {
     $countStmt = $pdo->prepare($countSql);
     $countStmt->execute($params);
     $totalProducts = $countStmt->fetchColumn();
+
+    // Alignement parfait des paramètres pour la requête principale : $scoreParams + $params
+    $queryParams = array_merge($scoreParams, $params);
 
     $sql = "SELECT
             P.*,
@@ -344,7 +363,7 @@ public function getProducts($page, $query, $categories, $colors) {
         {$limitSql};";
 
     $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
+    $stmt->execute($queryParams);
     $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // Mise en forme de la réponse JSON
@@ -395,7 +414,6 @@ public function getProducts($page, $query, $categories, $colors) {
     ]);
     exit();
 }
-
 
 public function generateGoogleMerchantXML() {
     @ini_set('memory_limit', '512M');
