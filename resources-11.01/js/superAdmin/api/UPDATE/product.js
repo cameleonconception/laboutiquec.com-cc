@@ -43,13 +43,11 @@ document.addEventListener('DOMContentLoaded', function() {
         delBtn.onclick = deleteProduct;
     }
 
-    // Sécurité supplémentaire : attacher l'événement au bouton '+' s'il existe dans le DOM
     const addVariantBtn = document.querySelector('.add-variant-main-btn');
     if (addVariantBtn) {
         addVariantBtn.onclick = window.addNewEmptyVariantRow;
     }
 
-    // Restauration des sélections enregistrées au chargement
     restoreSelections();
 });
 
@@ -143,7 +141,6 @@ window.addEventListener('productLoaded', function(e) {
     let form = document.querySelector('#superAdmin-newProductForm');
     let productDetails = e.detail.productDetails;
 
-    // Récupération sécurisée du tableau imgNames depuis la base de données
     existingImageNames = productDetails.imgNames || [];
     if (typeof existingImageNames === 'string') {
         try { existingImageNames = JSON.parse(existingImageNames); } catch (err) { existingImageNames = []; }
@@ -215,7 +212,6 @@ window.addEventListener('productLoaded', function(e) {
     bindSwitch('patch', showPatchDetails);
     bindSwitch('uvdtf');
 
-    // Img input : attachement de l'événement au changement
     const imgInput = document.querySelector('#img');
     if (imgInput) {
         imgInput.onchange = function() { previewSelectedImages(this); };
@@ -232,54 +228,25 @@ window.addEventListener('productLoaded', function(e) {
     }
 });
 
-// --- FONCTIONS DE VISIBILITÉ DES DÉTAILS ---
+// --- FONCTIONS DE VISIBILITÉ ---
 function toggleDisplay(selector, status) {
     const el = document.querySelector(selector);
     if (el) el.style.display = status ? "block" : "none";
 }
 
-function showCustomPersonalizationDetails(status) {
-    toggleDisplay('#customPersonalizationDetailsLabel', status);
-    toggleDisplay('#customPersonalizationDetails', status);
-}
+function showCustomPersonalizationDetails(status) { toggleDisplay('#customPersonalizationDetailsLabel', status); toggleDisplay('#customPersonalizationDetails', status); }
+function showBlankDetails(status) { toggleDisplay('#blankDetailsLabel', status); toggleDisplay('#blankDetails', status); }
+function showEmbroideryDetails(status) { toggleDisplay('#embroideryDetailsLabel', status); toggleDisplay('#embroideryDetails', status); }
+function showTampographieDetails(status) { toggleDisplay('#tampographieDetailsLabel', status); toggleDisplay('#tampographieDetails', status); }
+function showVividPrintDetails(status) { toggleDisplay('#vividPrintDetailsLabel', status); toggleDisplay('#vividPrintDetails', status); }
+function showEngravingDetails(status) { toggleDisplay('#engravingDetailsLabel', status); toggleDisplay('#engravingDetails', status); }
+function showPatchDetails(status) { toggleDisplay('#patchDetailsLabel', status); toggleDisplay('#patchDetails', status); }
+function showScreenPrintDetails(status) { toggleDisplay('#screenPrintDetailsLabel', status); toggleDisplay('#screenPrintDetails', status); }
 
-function showBlankDetails(status) {
-    toggleDisplay('#blankDetailsLabel', status);
-    toggleDisplay('#blankDetails', status);
-}
-
-function showEmbroideryDetails(status) {
-    toggleDisplay('#embroideryDetailsLabel', status);
-    toggleDisplay('#embroideryDetails', status);
-}
-
-function showTampographieDetails(status) {
-    toggleDisplay('#tampographieDetailsLabel', status);
-    toggleDisplay('#tampographieDetails', status);
-}
-
-function showVividPrintDetails(status) {
-    toggleDisplay('#vividPrintDetailsLabel', status);
-    toggleDisplay('#vividPrintDetails', status);
-}
-
-function showEngravingDetails(status) {
-    toggleDisplay('#engravingDetailsLabel', status);
-    toggleDisplay('#engravingDetails', status);
-}
-
-function showPatchDetails(status) {
-    toggleDisplay('#patchDetailsLabel', status);
-    toggleDisplay('#patchDetails', status);
-}
-
-function showScreenPrintDetails(status) {
-    toggleDisplay('#screenPrintDetailsLabel', status);
-    toggleDisplay('#screenPrintDetails', status);
-}
+// --- GESTION DES IMAGES SERVEUR (EXISTANTES) ---
 
 /**
- * Affiche la liste des images déjà présentes sur le serveur avec options de suppression et de renommage.
+ * Affiche la liste des images déjà présentes sur le serveur avec overlay d'actions au survol.
  */
 function displayExistingImages(form, sku) {
     const imgInput = form.querySelector('#img');
@@ -303,12 +270,21 @@ function displayExistingImages(form, sku) {
         const wrapper = document.createElement('div');
         wrapper.className = 'existing-image-item';
         wrapper.setAttribute('data-filename', imageName);
-        wrapper.style.cssText = "position:relative; display:inline-block; width:80px; text-align:center;";
+        wrapper.style.cssText = "position:relative; display:inline-block; width:80px; text-align:center; overflow:hidden; border-radius:4px;";
 
         wrapper.innerHTML = `
-            <img src="${imgSrcWithCache}" style="width:80px; height:80px; object-fit:cover; border-radius:4px; border:1px solid #ccc; position:relative;" title="${imageName}">
-            <button type="button" class="renameImgBtn" title="Renommer" onclick="promptRenameServerImage('${imageName}')" style="position:absolute; top:0; left:0; height:22px; width:22px; margin:0; padding:0; background:#333; color:#fff; border:none; border-radius:2px; cursor:pointer;">✎</button>
-            <button type="button" class="deleteImgBtn" title="Supprimer" onclick="deleteServerImage('${cleanPath}', this)" style="position:absolute; top:0; right:0; height:22px; width:22px; margin:0; padding:0; background:#e74c3c; color:#fff; border:none; border-radius:2px; cursor:pointer;">×</button>
+            <img src="${imgSrcWithCache}" style="width:80px; height:80px; object-fit:cover; border-radius:4px; border:1px solid #ccc; display:block;" title="${imageName}">
+            <div class="img-overlay-actions">
+                <button type="button" title="Renommer" onclick="promptRenameServerImage('${imageName}')">
+                    <img class='icons' src='../static-resources/default/icons/white/filter-2.png'>
+                </button>
+                <button type="button" title="Dupliquer" onclick="duplicateServerImage('${imageName}')">
+                    <img class='icons' src='../static-resources/default/icons/white/copy.png'>
+                </button>
+                <button type="button" title="Supprimer" onclick="deleteServerImage('${cleanPath}', this)">
+                    <img class='icons' src='../static-resources/default/icons/white/x.png'>
+                </button>
+            </div>
             <span style="font-size:9px; word-break:break-all; display:block; margin-top:2px;">${imageName}</span>
         `;
 
@@ -317,32 +293,67 @@ function displayExistingImages(form, sku) {
 }
 
 /**
- * Demande le nouveau nom et met à jour l'image via l'API.
+ * Duplique une image serveur directement côté client et l'injecte dans input#img
  */
+async function duplicateServerImage(imageName) {
+    saveCurrentSelections();
+
+    const imgInput = document.querySelector('#img');
+    if (!imgInput) return;
+
+    const lastDotIndex = imageName.lastIndexOf('.');
+    const ext = lastDotIndex !== -1 ? imageName.substring(lastDotIndex) : '';
+    const nameWithoutExt = lastDotIndex !== -1 ? imageName.substring(0, lastDotIndex) : imageName;
+
+    const parts = nameWithoutExt.split('-');
+    if (parts.length >= 3 && !isNaN(parts[parts.length - 1])) {
+        parts.pop();
+    }
+    const cleanBaseName = parts.join('-');
+    const newFileName = `${cleanBaseName}-${Date.now()}${ext}`;
+
+    try {
+        const imagePath = `../static-resources/products/${product.sku}/${imageName}`;
+        const response = await fetch(imagePath);
+        if (!response.ok) throw new Error("Impossible de charger l'image source.");
+
+        const blob = await response.blob();
+        const duplicatedFile = new File([blob], newFileName, { type: blob.type || 'image/webp' });
+
+        const dataTransfer = new DataTransfer();
+        if (imgInput.files && imgInput.files.length > 0) {
+            Array.from(imgInput.files).forEach(f => dataTransfer.items.add(f));
+        }
+
+        dataTransfer.items.add(duplicatedFile);
+        imgInput.files = dataTransfer.files;
+
+        previewSelectedImages(imgInput);
+
+    } catch (err) {
+        console.error("Erreur lors de la duplication client :", err);
+        alert("Impossible de dupliquer l'image.");
+    }
+}
+
 /**
- * Demande le nouveau nom, y ajoute automatiquement un timestamp et met à jour l'image via l'API.
+ * Renomme une image serveur via l'API
  */
 function promptRenameServerImage(oldFileName) {
-    // Récupération de l'extension d'origine (.jpg, .webp, .png, etc.)
     const lastDotIndex = oldFileName.lastIndexOf('.');
     const ext = lastDotIndex !== -1 ? oldFileName.substring(lastDotIndex) : '';
     const oldNameWithoutExt = lastDotIndex !== -1 ? oldFileName.substring(0, lastDotIndex) : oldFileName;
 
-    // Proposer par défaut le nom actuel sans l'extension pour faciliter la saisie (ex: "Orange-1")
     const userInput = prompt("Entrez la base du nom (ex: Couleur-Index) :", oldNameWithoutExt);
     
     if (userInput && userInput.trim() !== "") {
         let cleanInput = userInput.trim();
 
-        // Si l'utilisateur a tapé l'extension à la fin, on la retire pour ne pas l'avoir en double
         if (ext && cleanInput.toLowerCase().endsWith(ext.toLowerCase())) {
             cleanInput = cleanInput.substring(0, cleanInput.length - ext.length);
         }
 
-        // Génération du timestamp unique
         const timestamp = Date.now();
-
-        // Formatage final : [Couleur]-[index]-[timestamp].ext
         const formattedNewFileName = `${cleanInput}-${timestamp}${ext}`;
 
         saveCurrentSelections();
@@ -360,7 +371,6 @@ function promptRenameServerImage(oldFileName) {
         .then(res => res.json())
         .then(data => {
             if (data.success) {
-                // Mise à jour locale dans le tableau d'images et rafraîchissement de l'affichage
                 const index = existingImageNames.indexOf(oldFileName);
                 if (index !== -1) {
                     existingImageNames[index] = data.newFileName;
@@ -375,9 +385,6 @@ function promptRenameServerImage(oldFileName) {
     }
 }
 
-/**
- * Supprime visuellement la miniature et enregistre son chemin pour suppression physique
- */
 function deleteServerImage(imagePath, btnElement) {
     if (confirm("Voulez-vous vraiment supprimer cette image ?")) {
         imagesToDelete.push(imagePath);
@@ -388,12 +395,17 @@ function deleteServerImage(imagePath, btnElement) {
     }
 }
 
+// --- GESTION DES NOUVELLES IMAGES (INPUT FILE) ---
+
+/**
+ * Génère l'aperçu des nouvelles images avec overlay d'actions au survol.
+ */
 function previewSelectedImages(input) {
     let previewContainer = document.querySelector('#new-images-preview');
     if (!previewContainer) {
         previewContainer = document.createElement('div');
         previewContainer.id = 'new-images-preview';
-        previewContainer.style.cssText = "display:flex; gap:12px; flex-wrap:wrap; border:1px dashed #ccc; padding:5px;";
+        previewContainer.style.cssText = "display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;";
         input.after(previewContainer);
     }
 
@@ -423,11 +435,24 @@ function previewSelectedImages(input) {
             const reader = new FileReader();
             reader.onload = function(e) {
                 const wrapper = document.createElement('div');
-                wrapper.style.cssText = "width:80px; text-align:center;";
+                wrapper.className = 'existing-image-item new-image-item';
+                wrapper.style.cssText = "position:relative; display:inline-block; width:80px; text-align:center; overflow:hidden; border-radius:4px;";
+
                 wrapper.innerHTML = `
-                    <img src="${e.target.result}" title="${renamedFile.name}" 
-                         style="width:80px; height:80px; object-fit:cover; border-radius:4px; border:2px solid #4CAF50;">
-                    <span style="font-size:10px; word-break:break-all; display:block;">${renamedFile.name}</span>`;
+                    <img src="${e.target.result}" style="width:80px; height:80px; object-fit:cover; border-radius:4px; border:2px solid #4CAF50; display:block;" title="${renamedFile.name}">
+                    <div class="img-overlay-actions">
+                        <button type="button" title="Renommer" onclick="promptRenameNewImage(${index})">
+                            <img class='icons' src='../static-resources/default/icons/white/filter-2.png'>
+                        </button>
+                        <button type="button" title="Dupliquer" onclick="duplicateNewImage(${index})">
+                            <img class='icons' src='../static-resources/default/icons/white/copy.png'>
+                        </button>
+                        <button type="button" title="Supprimer" onclick="removeNewImage(${index})">
+                            <img class='icons' src='../static-resources/default/icons/white/x.png'>
+                        </button>
+                    </div>
+                    <span style="font-size:9px; word-break:break-all; display:block; margin-top:2px;">${renamedFile.name}</span>
+                `;
                 previewContainer.appendChild(wrapper);
             };
             reader.readAsDataURL(renamedFile);
@@ -436,6 +461,92 @@ function previewSelectedImages(input) {
         input.files = dataTransfer.files;
     }
 }
+
+function promptRenameNewImage(index) {
+    const imgInput = document.querySelector('#img');
+    if (!imgInput || !imgInput.files[index]) return;
+
+    const file = imgInput.files[index];
+    const lastDotIndex = file.name.lastIndexOf('.');
+    const ext = lastDotIndex !== -1 ? file.name.substring(lastDotIndex) : '';
+    const nameWithoutExt = lastDotIndex !== -1 ? file.name.substring(0, lastDotIndex) : file.name;
+
+    const parts = nameWithoutExt.split('-');
+    if (parts.length >= 3 && !isNaN(parts[parts.length - 1])) {
+        parts.pop();
+    }
+    const cleanBaseName = parts.join('-');
+
+    const userInput = prompt("Entrez la base du nom (ex: Couleur-Index) :", cleanBaseName);
+    if (userInput && userInput.trim() !== "") {
+        let cleanInput = userInput.trim();
+        if (ext && cleanInput.toLowerCase().endsWith(ext.toLowerCase())) {
+            cleanInput = cleanInput.substring(0, cleanInput.length - ext.length);
+        }
+
+        const newFileName = `${cleanInput}-${Date.now()}${ext}`;
+        const renamedFile = new File([file], newFileName, { type: file.type });
+
+        const dataTransfer = new DataTransfer();
+        Array.from(imgInput.files).forEach((f, i) => {
+            if (i === index) {
+                dataTransfer.items.add(renamedFile);
+            } else {
+                dataTransfer.items.add(f);
+            }
+        });
+
+        imgInput.files = dataTransfer.files;
+        previewSelectedImages(imgInput);
+    }
+}
+
+function duplicateNewImage(index) {
+    const imgInput = document.querySelector('#img');
+    if (!imgInput || !imgInput.files[index]) return;
+
+    const file = imgInput.files[index];
+    const lastDotIndex = file.name.lastIndexOf('.');
+    const ext = lastDotIndex !== -1 ? file.name.substring(lastDotIndex) : '';
+    const nameWithoutExt = lastDotIndex !== -1 ? file.name.substring(0, lastDotIndex) : file.name;
+
+    const parts = nameWithoutExt.split('-');
+    if (parts.length >= 3 && !isNaN(parts[parts.length - 1])) {
+        parts.pop();
+    }
+    const cleanBaseName = parts.join('-');
+    const newFileName = `${cleanBaseName}-${Date.now()}${ext}`;
+
+    const duplicatedFile = new File([file], newFileName, { type: file.type });
+
+    const dataTransfer = new DataTransfer();
+    Array.from(imgInput.files).forEach((f, i) => {
+        dataTransfer.items.add(f);
+        if (i === index) {
+            dataTransfer.items.add(duplicatedFile);
+        }
+    });
+
+    imgInput.files = dataTransfer.files;
+    previewSelectedImages(imgInput);
+}
+
+function removeNewImage(index) {
+    const imgInput = document.querySelector('#img');
+    if (!imgInput) return;
+
+    const dataTransfer = new DataTransfer();
+    Array.from(imgInput.files).forEach((f, i) => {
+        if (i !== index) {
+            dataTransfer.items.add(f);
+        }
+    });
+
+    imgInput.files = dataTransfer.files;
+    previewSelectedImages(imgInput);
+}
+
+// --- GESTION DES VARIANTES ET DU FORMULAIRE ---
 
 function addVariantRow(AutoAdd = null, targetRow = null) {
     removeErrorMessage();
@@ -495,9 +606,6 @@ function addVariantRow(AutoAdd = null, targetRow = null) {
     return row;
 }
 
-/**
- * Modifie un seul champ (taille, couleur, prix ou stock) sur l'ensemble des variantes cochées
- */
 function handleCellBulkEdit(fieldType, selectedRows) {
     const fieldLabels = {
         size: 'la grandeur/taille',
@@ -533,13 +641,11 @@ function handleCellBulkEdit(fieldType, selectedRows) {
             if (stockTd) stockTd.textContent = val;
         }
 
-        // Animation visuelle rapide de mise à jour
         row.style.transition = 'background-color 0.3s ease';
         row.style.backgroundColor = 'var(--light-light-accent-color)';
         setTimeout(() => { row.style.backgroundColor = ''; }, 1500);
     });
 
-    // Optionnel : décocher la sélection après modification
     const masterCb = document.getElementById('select-all-variants');
     if (masterCb) masterCb.checked = false;
     selectedRows.forEach(row => {
@@ -576,7 +682,6 @@ function renderRowContent(row, data) {
         checkbox.onclick = (e) => e.stopPropagation();
     }
 
-    // Gestion du clic sur le bouton d'édition classique (1 ligne ou groupe complet en inputs)
     row.querySelector('.editBtn').onclick = (e) => {
         if (e) e.stopPropagation();
         const selectedRows = getSelectedVariantRows();
@@ -587,19 +692,16 @@ function renderRowContent(row, data) {
         }
     };
 
-    // --- GESTION DU DOUBLE-CLIC CIBLÉ SUR UNE CELLULE (Taille, Couleur, Prix, Stock) ---
     const editableCells = row.querySelectorAll('[data-field]');
     editableCells.forEach(cell => {
         cell.ondblclick = (e) => {
             e.stopPropagation();
-            const fieldType = cell.getAttribute('data-field'); // 'size', 'color', 'price' ou 'stock'
+            const fieldType = cell.getAttribute('data-field');
             const selectedRows = getSelectedVariantRows();
 
-            // Si plusieurs lignes sont cochées, on applique la modif ciblée sur tout le groupe
             if (selectedRows.length > 1) {
                 handleCellBulkEdit(fieldType, selectedRows);
             } else {
-                // Si une seule ligne (ou aucune case cochée), on passe simplement la ligne en édition
                 makeRowEditable(row, data);
             }
         };
@@ -630,9 +732,6 @@ function renderRowContent(row, data) {
     };
 }
 
-/**
- * Alerte ciblée pour modifier uniquement le nom d'une couleur.
- */
 function promptEditColorOnly(oldColor) {
     const newColor = prompt("Modifier uniquement la couleur :", oldColor);
 
@@ -977,42 +1076,18 @@ function duplicateVariant(data, targetRow = null) {
     }, targetRow);
 }
 
-function askForBulkOverrides() {
-    const overrides = {};
-
-    const fields = [
-        { key: 'size', label: 'la taille' },
-        { key: 'color', label: 'la couleur' },
-        { key: 'price', label: 'le prix' },
-        { key: 'stock', label: 'le stock' }
-    ];
-
-    fields.forEach(field => {
-        if (confirm(`Voulez-vous modifier ${field.label} de TOUTES les variantes sélectionnées ?`)) {
-            const newValue = prompt(`Entrez la nouvelle valeur pour ${field.label} :`);
-            if (newValue !== null && newValue.trim() !== "") {
-                overrides[field.key] = newValue.trim();
-            }
-        }
-    });
-
-    return overrides;
-}
-
 function bulkDuplicateVariants() {
     const selectedRows = getSelectedVariantRows();
-
     if (selectedRows.length === 0) return;
 
-    const overrides = askForBulkOverrides();
     const firstSelectedRow = selectedRows[0];
 
     selectedRows.forEach(row => {
         const data = {
-            size: overrides.size !== undefined ? overrides.size : (row.querySelector('.col-size')?.textContent.trim() || ''),
-            color: overrides.color !== undefined ? overrides.color : (row.querySelector('.col-color')?.textContent.trim() || ''),
-            price: overrides.price !== undefined ? overrides.price : (row.dataset.basePrice || '0.00'),
-            stock: overrides.stock !== undefined ? overrides.stock : (row.querySelector('.col-stock')?.textContent.trim() || '')
+            size: row.querySelector('.col-size')?.textContent.trim() || '',
+            color: row.querySelector('.col-color')?.textContent.trim() || '',
+            price: row.dataset.basePrice || '0.00',
+            stock: row.querySelector('.col-stock')?.textContent.trim() || ''
         };
         
         duplicateVariant(data, firstSelectedRow);
@@ -1029,7 +1104,6 @@ function bulkDuplicateVariants() {
 
 function bulkDeleteVariants() {
     const selectedRows = getSelectedVariantRows();
-    
     if (selectedRows.length === 0) return;
 
     if (confirm(`Voulez-vous vraiment supprimer les ${selectedRows.length} variantes sélectionnées ?`)) {
@@ -1046,8 +1120,6 @@ function bulkEditVariants() {
     const selectedRows = getSelectedVariantRows();
     if (selectedRows.length === 0) return;
 
-    const overrides = askForBulkOverrides();
-
     const rowsData = selectedRows.map(row => {
         const defaultSize = row.querySelector('.col-size')?.textContent.trim() || '';
         const defaultColor = row.querySelector('.col-color')?.textContent.trim() || '';
@@ -1061,12 +1133,6 @@ function bulkEditVariants() {
                 color: defaultColor,
                 price: defaultPrice,
                 stock: defaultStock
-            },
-            editData: {
-                size: overrides.size !== undefined ? overrides.size : defaultSize,
-                color: overrides.color !== undefined ? overrides.color : defaultColor,
-                price: overrides.price !== undefined ? overrides.price : defaultPrice,
-                stock: overrides.stock !== undefined ? overrides.stock : defaultStock
             }
         };
     });
@@ -1116,6 +1182,6 @@ function bulkEditVariants() {
     };
 
     rowsData.forEach(item => {
-        makeRowEditable(item.row, item.editData, groupEditContext);
+        makeRowEditable(item.row, item.oldData, groupEditContext);
     });
 }
