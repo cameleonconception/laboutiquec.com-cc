@@ -319,10 +319,32 @@ function displayExistingImages(form, sku) {
 /**
  * Demande le nouveau nom et met à jour l'image via l'API.
  */
+/**
+ * Demande le nouveau nom, y ajoute automatiquement un timestamp et met à jour l'image via l'API.
+ */
 function promptRenameServerImage(oldFileName) {
-    const newFileName = prompt("Entrez le nouveau nom de fichier :", oldFileName);
+    // Récupération de l'extension d'origine (.jpg, .webp, .png, etc.)
+    const lastDotIndex = oldFileName.lastIndexOf('.');
+    const ext = lastDotIndex !== -1 ? oldFileName.substring(lastDotIndex) : '';
+    const oldNameWithoutExt = lastDotIndex !== -1 ? oldFileName.substring(0, lastDotIndex) : oldFileName;
+
+    // Proposer par défaut le nom actuel sans l'extension pour faciliter la saisie (ex: "Orange-1")
+    const userInput = prompt("Entrez la base du nom (ex: Couleur-Index) :", oldNameWithoutExt);
     
-    if (newFileName && newFileName.trim() !== "" && newFileName.trim() !== oldFileName) {
+    if (userInput && userInput.trim() !== "") {
+        let cleanInput = userInput.trim();
+
+        // Si l'utilisateur a tapé l'extension à la fin, on la retire pour ne pas l'avoir en double
+        if (ext && cleanInput.toLowerCase().endsWith(ext.toLowerCase())) {
+            cleanInput = cleanInput.substring(0, cleanInput.length - ext.length);
+        }
+
+        // Génération du timestamp unique
+        const timestamp = Date.now();
+
+        // Formatage final : [Couleur]-[index]-[timestamp].ext
+        const formattedNewFileName = `${cleanInput}-${timestamp}${ext}`;
+
         saveCurrentSelections();
         
         fetch("../api/superAdmin/UPDATE/product", {
@@ -332,12 +354,13 @@ function promptRenameServerImage(oldFileName) {
                 action: 'rename_image',
                 product_id: product.id,
                 old_file_name: oldFileName,
-                new_file_name: newFileName.trim()
+                new_file_name: formattedNewFileName
             })
         })
         .then(res => res.json())
         .then(data => {
             if (data.success) {
+                // Mise à jour locale dans le tableau d'images et rafraîchissement de l'affichage
                 const index = existingImageNames.indexOf(oldFileName);
                 if (index !== -1) {
                     existingImageNames[index] = data.newFileName;

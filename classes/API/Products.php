@@ -1504,34 +1504,33 @@ public function updateProduct($post, $files, $categories, $variants, $personaliz
         
         $stmtProd = $pdo->prepare($sqlProd);
         
-        // Utilisation directe de la variable $supplierId passée en argument
         $stmtProd->execute([
             ':name'            => $post['name'] ?? '',
             ':sku'             => $newSku,
             ':description'     => $post['description'] ?? '',
-            ':imgNames'     => $imgNames ?? [],
+            ':imgNames'        => is_array($imgNames) ? json_encode($imgNames, JSON_UNESCAPED_UNICODE) : $imgNames,
             ':blankDetails'     => $post['blankDetails'] ?? '',
-            ':embroideryDetails'     => $post['embroideryDetails'] ?? '',
-            ':customPersonalizationDetails'     => $post['customPersonalizationDetails'] ?? '',
-            ':tampographieDetails'     => $post['tampographieDetails'] ?? '',
-            ':vividPrintDetails'     => $post['vividPrintDetails'] ?? '',
-            ':screenPrintDetails'     => $post['screenPrintDetails'] ?? '',
-            ':engravingDetails'     => $post['engravingDetails'] ?? '',
+            ':embroideryDetails' => $post['embroideryDetails'] ?? '',
+            ':customPersonalizationDetails' => $post['customPersonalizationDetails'] ?? '',
+            ':tampographieDetails' => $post['tampographieDetails'] ?? '',
+            ':vividPrintDetails' => $post['vividPrintDetails'] ?? '',
+            ':screenPrintDetails' => $post['screenPrintDetails'] ?? '',
+            ':engravingDetails' => $post['engravingDetails'] ?? '',
             ':patchDetails'     => $post['patchDetails'] ?? '',
             ':personalization' => $personalization,
             ':active'          => (int)$post['active'],
-            ':blank'          => (int)$post['blank'],
-            ':dtf'          => (int)$post['dtf'],
-            ':broderie'          => (int)$post['broderie'],
-            ':customPersonalization'          => (int)$post['customPersonalization'],
-            ':tampographie'          => (int)$post['tampographie'],
-            ':vividPrint'          => (int)$post['vividPrint'],
-            ':screenPrint'          => (int)$post['screenPrint'],
-            ':engraving'          => (int)$post['engraving'],
-            ':patch'          => (int)$post['patch'],
-            ':uvdtf'          => (int)$post['uvdtf'],
-            ':zoom'          => (float)$post['zoom'],
-            ':supplierId'      => $supplierId, // <-- Utilise la variable filtrée du contrôleur
+            ':blank'           => (int)$post['blank'],
+            ':dtf'             => (int)$post['dtf'],
+            ':broderie'        => (int)$post['broderie'],
+            ':customPersonalization' => (int)$post['customPersonalization'],
+            ':tampographie'    => (int)$post['tampographie'],
+            ':vividPrint'      => (int)$post['vividPrint'],
+            ':screenPrint'     => (int)$post['screenPrint'],
+            ':engraving'       => (int)$post['engraving'],
+            ':patch'           => (int)$post['patch'],
+            ':uvdtf'           => (int)$post['uvdtf'],
+            ':zoom'            => (float)$post['zoom'],
+            ':supplierId'      => $supplierId,
             ':id'              => $productId
         ]);
 
@@ -1546,18 +1545,41 @@ public function updateProduct($post, $files, $categories, $variants, $personaliz
             }
         }
 
-        // Création du dossier s'il n'existe pas (nouveau ou renommé)
         if (!is_dir($newPath)) {
             mkdir($newPath, 0777, true);
         }
 
-        // 3. Suppression des images marquées dans le JS (Unlink)
+        // 3. SUPPRESSION DES IMAGES MARQUÉES ET NETTOYAGE DES FICHIERS ORPHELINS SUR LE DISQUE
         $deleteImages = json_decode($post['deleteImages'] ?? '[]', true);
         foreach ($deleteImages as $imageRelativePath) {
-            $fileName = basename($imageRelativePath); // Sécurité : on ne récupère que le nom du fichier
+            $fileName = basename($imageRelativePath);
             $filePath = $newPath . "/" . $fileName;
             if (file_exists($filePath)) {
                 unlink($filePath);
+            }
+        }
+
+        // --- NETTOYAGE AUTOMATIQUE DES FICHIERS NON RÉPERTORIÉS ---
+        if (is_dir($newPath)) {
+            $existingFilesOnDisk = scandir($newPath);
+            $allowedImages = is_array($imgNames) ? $imgNames : json_decode($imgNames, true);
+            if (!is_array($allowedImages)) {
+                $allowedImages = [];
+            }
+
+            $protectedFiles = ['.', '..', 'Fiche technique.pdf'];
+
+            foreach ($existingFilesOnDisk as $file) {
+                if (in_array($file, $protectedFiles)) {
+                    continue;
+                }
+
+                if (!in_array($file, $allowedImages)) {
+                    $filePathToDelete = $newPath . "/" . $file;
+                    if (file_exists($filePathToDelete) && is_file($filePathToDelete)) {
+                        unlink($filePathToDelete);
+                    }
+                }
             }
         }
 
@@ -1581,59 +1603,49 @@ public function updateProduct($post, $files, $categories, $variants, $personaliz
         }
 
         // 5. NETTOYAGE ET RÉ-INSERTION DES VARIANTES
-            $pdo->prepare("DELETE FROM product_size_color_price WHERE product_id = ?")->execute([$productId]);
+        $pdo->prepare("DELETE FROM product_size_color_price WHERE product_id = ?")->execute([$productId]);
 
-            foreach ($variants as $v) {
-                // Gestion Taille (existant)
-                $sizeName = trim($v['size']);
-                $stmtS = $pdo->prepare("SELECT id FROM sizes WHERE name = ?");
-                $stmtS->execute([$sizeName]);
-                $sizeId = $stmtS->fetchColumn() ?: ($pdo->prepare("INSERT INTO sizes (name) VALUES (?)")->execute([$sizeName]) ? $pdo->lastInsertId() : null);
+        foreach ($variants as $v) {
+            $sizeName = trim($v['size']);
+            $stmtS = $pdo->prepare("SELECT id FROM sizes WHERE name = ?");
+            $stmtS->execute([$sizeName]);
+            $sizeId = $stmtS->fetchColumn() ?: ($pdo->prepare("INSERT INTO sizes (name) VALUES (?)")->execute([$sizeName]) ? $pdo->lastInsertId() : null);
 
-                // Gestion Couleur (existant)
-                $colorName = trim($v['color']);
-                $stmtC = $pdo->prepare("SELECT id FROM colors WHERE name = ?");
-                $stmtC->execute([$colorName]);
-                $colorId = $stmtC->fetchColumn() ?: ($pdo->prepare("INSERT INTO colors (name) VALUES (?)")->execute([$colorName]) ? $pdo->lastInsertId() : null);
+            $colorName = trim($v['color']);
+            $stmtC = $pdo->prepare("SELECT id FROM colors WHERE name = ?");
+            $stmtC->execute([$colorName]);
+            $colorId = $stmtC->fetchColumn() ?: ($pdo->prepare("INSERT INTO colors (name) VALUES (?)")->execute([$colorName]) ? $pdo->lastInsertId() : null);
 
-                // --- MISE À JOUR : Insertion avec les prix dégressifs ---
-                // On s'assure que si la valeur est vide dans le JS, on insère NULL en BD
-                $sqlVar = "INSERT INTO product_size_color_price 
-                        (product_id, size_id, color_id, price, stock) 
-                        VALUES (?, ?, ?, ?, ?)";
-                
-                $stmtVar = $pdo->prepare($sqlVar);
-                $stmtVar->execute([
-                    $productId, 
-                    $sizeId, 
-                    $colorId, 
-                    $v['price'], 
-                    $v['stock'],
-                ]);
-            }
+            $sqlVar = "INSERT INTO product_size_color_price 
+                    (product_id, size_id, color_id, price, stock) 
+                    VALUES (?, ?, ?, ?, ?)";
+            
+            $stmtVar = $pdo->prepare($sqlVar);
+            $stmtVar->execute([
+                $productId, 
+                $sizeId, 
+                $colorId, 
+                $v['price'], 
+                $v['stock'],
+            ]);
+        }
 
-            // Dans updateProduct, section 6 :
-            // Gestion des IMAGES (Version : Garde les noms originaux et écrase l'existant)
-            if (isset($files['img']) && !empty($files['img']['name'][0])) {
-                $fileEntries = $files['img'];
-                $count = count($fileEntries['name']);
+        // 6. Gestion des nouvelles IMAGES téléversées
+        if (isset($files['img']) && !empty($files['img']['name'][0])) {
+            $fileEntries = $files['img'];
+            $count = count($fileEntries['name']);
 
-                for ($i = 0; $i < $count; $i++) {
-                    if ($fileEntries['error'][$i] === UPLOAD_ERR_OK) {
-                        
-                        // On récupère le nom tel quel (avec accents, espaces, etc.)
-                        $originalName = basename($fileEntries['name'][$i]);
-                        
-                        // Le chemin de destination complet
-                        $destPath = $newPath . "/" . $originalName;
+            for ($i = 0; $i < $count; $i++) {
+                if ($fileEntries['error'][$i] === UPLOAD_ERR_OK) {
+                    $originalName = basename($fileEntries['name'][$i]);
+                    $destPath = $newPath . "/" . $originalName;
 
-                        // move_uploaded_file écrase automatiquement le fichier s'il existe déjà
-                        if (!move_uploaded_file($fileEntries['tmp_name'][$i], $destPath)) {
-                            throw new Exception("Échec du transfert de l'image : " . $originalName);
-                        }
+                    if (!move_uploaded_file($fileEntries['tmp_name'][$i], $destPath)) {
+                        throw new Exception("Échec du transfert de l'image : " . $originalName);
                     }
                 }
             }
+        }
 
         // 7. Gestion de la FICHE TECHNIQUE
         if (isset($files['technicalFile']) && $files['technicalFile']['error'] === UPLOAD_ERR_OK) {
