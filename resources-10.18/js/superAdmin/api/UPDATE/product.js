@@ -1,13 +1,75 @@
 let imagesToDelete = []; 
 let existingImageNames = []; // Tableau qui conserve la liste officielle des images existantes du produit
 
+// --- FONCTIONS EXPOSÉES À WINDOW (DOIVENT ÊTRE EN HAUT) ---
+window.addNewEmptyVariantRow = function() {
+    const tbody = document.getElementById('variants-body');
+    const container = document.getElementById('variants-container');
+    
+    if (container) container.classList.remove('hidden');
+
+    const row = document.createElement('tr');
+    const emptyData = { size: "", color: "", price: "", stock: "" };
+
+    makeRowEditable(row, emptyData);
+    if (tbody) tbody.prepend(row);
+    
+    const firstInput = row.querySelector('input');
+    if (firstInput) firstInput.focus();
+};
+
+window.toggleNewProductForm = function() {
+    let screen = document.querySelector(".fullBlurBg");
+    let addBtnImg = document.querySelector("#superAdmin-editProductBtn img");
+
+    if (!screen) {
+        console.error("Le formulaire (fullBlurBg) est introuvable dans le DOM.");
+        return;
+    }
+
+    if (screen.style.display === 'none' || screen.style.display === '') {
+        screen.style.display = 'flex';
+        if (addBtnImg) addBtnImg.src = '../static-resources/default/icons/black/x.png';
+    } else {
+        screen.style.display = 'none';
+        if (addBtnImg) addBtnImg.src = '../static-resources/default/icons/black/filter-2.png';
+    }
+};
+
 // --- ÉCOUTEURS ET INITIALISATION ---
 document.addEventListener('DOMContentLoaded', function() {
     const delBtn = document.querySelector('#deleteProduct');
     if (delBtn) {
         delBtn.onclick = deleteProduct;
     }
+
+    // Sécurité supplémentaire : attacher l'événement au bouton '+' s'il existe dans le DOM
+    const addVariantBtn = document.querySelector('.add-variant-main-btn');
+    if (addVariantBtn) {
+        addVariantBtn.onclick = window.addNewEmptyVariantRow;
+    }
+
+    // Restauration des sélections enregistrées au chargement
+    restoreSelections();
 });
+
+// --- GESTION DE LA PERSISTANCE DES SÉLECTIONS ---
+function saveCurrentSelections() {
+    const selectedSupplier = document.querySelector('#supplier')?.value;
+    const selectedCategory = document.querySelector('#new-category')?.value;
+
+    if (selectedSupplier) localStorage.setItem('edit_last_supplier', selectedSupplier);
+    if (selectedCategory) localStorage.setItem('edit_last_category', selectedCategory);
+}
+
+function restoreSelections() {
+    const lastSupplier = localStorage.getItem('edit_last_supplier');
+    const supplierSelect = document.querySelector('#supplier');
+
+    if (supplierSelect && lastSupplier) {
+        supplierSelect.value = lastSupplier;
+    }
+}
 
 function deleteProduct() {
     if (!product || !product.id) {
@@ -79,37 +141,37 @@ window.addEventListener('productLoaded', function(e) {
     }
     
     let form = document.querySelector('#superAdmin-newProductForm');
-    let product = e.detail.productDetails;
+    let productDetails = e.detail.productDetails;
 
     // Récupération sécurisée du tableau imgNames depuis la base de données
-    existingImageNames = product.imgNames || [];
+    existingImageNames = productDetails.imgNames || [];
     if (typeof existingImageNames === 'string') {
         try { existingImageNames = JSON.parse(existingImageNames); } catch (err) { existingImageNames = []; }
     }
 
     // --- REMPLISSAGE DES CHAMPS TEXTES ---
-    form.querySelector('input#name').value = product.name || '';
-    form.querySelector('input#sku').value = product.sku || '';
-    form.querySelector('textarea#description').value = decodeBase64UTF8(product.description);
-    form.querySelector('textarea#personalization').value = product.personalization || '';
-    form.querySelector('textarea#embroideryDetails').value = decodeBase64UTF8(product.embroideryDetails);
-    form.querySelector('textarea#blankDetails').value = decodeBase64UTF8(product.blankDetails);
-    form.querySelector('textarea#customPersonalizationDetails').value = decodeBase64UTF8(product.customPersonalizationDetails);
-    form.querySelector('textarea#tampographieDetails').value = decodeBase64UTF8(product.tampographieDetails);
-    form.querySelector('textarea#screenPrintDetails').value = decodeBase64UTF8(product.screenPrintDetails);
-    form.querySelector('textarea#vividPrintDetails').value = decodeBase64UTF8(product.vividPrintDetails);
-    form.querySelector('textarea#engravingDetails').value = decodeBase64UTF8(product.engravingDetails);
-    form.querySelector('textarea#patchDetails').value = decodeBase64UTF8(product.patchDetails);
-    form.querySelector('input#zoom').value = product.zoom || 1;
+    form.querySelector('input#name').value = productDetails.name || '';
+    form.querySelector('input#sku').value = productDetails.sku || '';
+    form.querySelector('textarea#description').value = decodeBase64UTF8(productDetails.description);
+    form.querySelector('textarea#personalization').value = productDetails.personalization || '';
+    form.querySelector('textarea#embroideryDetails').value = decodeBase64UTF8(productDetails.embroideryDetails);
+    form.querySelector('textarea#blankDetails').value = decodeBase64UTF8(productDetails.blankDetails);
+    form.querySelector('textarea#customPersonalizationDetails').value = decodeBase64UTF8(productDetails.customPersonalizationDetails);
+    form.querySelector('textarea#tampographieDetails').value = decodeBase64UTF8(productDetails.tampographieDetails);
+    form.querySelector('textarea#screenPrintDetails').value = decodeBase64UTF8(productDetails.screenPrintDetails);
+    form.querySelector('textarea#vividPrintDetails').value = decodeBase64UTF8(productDetails.vividPrintDetails);
+    form.querySelector('textarea#engravingDetails').value = decodeBase64UTF8(productDetails.engravingDetails);
+    form.querySelector('textarea#patchDetails').value = decodeBase64UTF8(productDetails.patchDetails);
+    form.querySelector('input#zoom').value = productDetails.zoom || 1;
 
     // --- CATÉGORIES ET VARIANTES ---
-    if (product.categories) {
-        product.categories.forEach(category => addNewCategory(category));
+    if (productDetails.categories) {
+        productDetails.categories.forEach(category => addNewCategory(category));
     }
 
-    if (product.variants) {
-        Object.keys(product.variants).forEach(colorName => {
-            product.variants[colorName].forEach(variant => {
+    if (productDetails.variants) {
+        Object.keys(productDetails.variants).forEach(colorName => {
+            productDetails.variants[colorName].forEach(variant => {
                 addVariantRow({
                     size: variant.size,
                     color: colorName,
@@ -124,7 +186,7 @@ window.addEventListener('productLoaded', function(e) {
     let supplierSelect = document.querySelector('#supplier');
     if (data.allSuppliers && supplierSelect) {
         data.allSuppliers.forEach(supplier => {
-            const isSelected = product.supplierId == supplier.id ? 'selected' : '';
+            const isSelected = productDetails.supplierId == supplier.id ? 'selected' : '';
             supplierSelect.innerHTML += `<option value="${supplier.id}" ${isSelected}>${supplier.name}</option>`;
         });
     }
@@ -133,7 +195,7 @@ window.addEventListener('productLoaded', function(e) {
     const bindSwitch = (name, showFn) => {
         let input = form.querySelector(`.switch input[name="${name}"]`);
         if (input) {
-            input.checked = parseInt(product[name]) === 1;
+            input.checked = parseInt(productDetails[name]) === 1;
             if (showFn) {
                 showFn(input.checked);
                 input.addEventListener('change', function() { showFn(this.checked); });
@@ -159,8 +221,8 @@ window.addEventListener('productLoaded', function(e) {
         imgInput.onchange = function() { previewSelectedImages(this); };
     }
 
-    displayExistingImages(form, product.sku);
-    displayExistingTechnicalFile(product.sku);
+    displayExistingImages(form, productDetails.sku);
+    displayExistingTechnicalFile(productDetails.sku);
     
     checkContainers();
     const varSearch = document.getElementById('variant-search');
@@ -216,30 +278,8 @@ function showScreenPrintDetails(status) {
     toggleDisplay('#screenPrintDetails', status);
 }
 
-// --- FONCTIONS GLOBALES (EXPOSITION À WINDOW) ---
-window.toggleNewProductForm = function() {
-    let screen = document.querySelector(".fullBlurBg");
-    let addBtnImg = document.querySelector("#superAdmin-editProductBtn img");
-
-    if (!screen) {
-        console.error("Le formulaire (fullBlurBg) est introuvable dans le DOM.");
-        return;
-    }
-
-    if (screen.style.display === 'none' || screen.style.display === '') {
-        screen.style.display = 'flex';
-        if (addBtnImg) addBtnImg.src = '../static-resources/default/icons/black/x.png';
-    } else {
-        screen.style.display = 'none';
-        if (addBtnImg) addBtnImg.src = '../static-resources/default/icons/black/filter-2.png';
-    }
-};
-
 /**
- * Affiche la liste des images déjà présentes en base de données.
- */
-/**
- * Affiche la liste des images déjà présentes sur le serveur
+ * Affiche la liste des images déjà présentes sur le serveur avec options de suppression et de renommage.
  */
 function displayExistingImages(form, sku) {
     const imgInput = form.querySelector('#img');
@@ -256,20 +296,20 @@ function displayExistingImages(form, sku) {
 
     const cacheBuster = new Date().getTime();
 
-    // On parcourt les images récupérées de la base de données
     existingImageNames.forEach(imageName => {
         const cleanPath = `../static-resources/products/${sku}/${imageName}`;
         const imgSrcWithCache = `${cleanPath}?v=${cacheBuster}`;
 
-        // Wrapper pour chaque miniature
         const wrapper = document.createElement('div');
         wrapper.className = 'existing-image-item';
-        wrapper.setAttribute('data-filename', imageName); // On stocke le nom du fichier ici
-        wrapper.style.cssText = "position:relative; display:inline-block; width:80px;";
+        wrapper.setAttribute('data-filename', imageName);
+        wrapper.style.cssText = "position:relative; display:inline-block; width:80px; text-align:center;";
 
         wrapper.innerHTML = `
             <img src="${imgSrcWithCache}" style="width:80px; height:80px; object-fit:cover; border-radius:4px; border:1px solid #ccc; position:relative;" title="${imageName}">
-            <button type="button" class="deleteImgBtn" onclick="deleteServerImage('${cleanPath}', this)" style="position:absolute;top:0;right:0; height:25px; width:25px; margin:0;padding:0;">×</button>
+            <button type="button" class="renameImgBtn" title="Renommer" onclick="promptRenameServerImage('${imageName}')" style="position:absolute; top:0; left:0; height:22px; width:22px; margin:0; padding:0; background:#333; color:#fff; border:none; border-radius:2px; cursor:pointer;">✎</button>
+            <button type="button" class="deleteImgBtn" title="Supprimer" onclick="deleteServerImage('${cleanPath}', this)" style="position:absolute; top:0; right:0; height:22px; width:22px; margin:0; padding:0; background:#e74c3c; color:#fff; border:none; border-radius:2px; cursor:pointer;">×</button>
+            <span style="font-size:9px; word-break:break-all; display:block; margin-top:2px;">${imageName}</span>
         `;
 
         previewContainer.appendChild(wrapper);
@@ -277,24 +317,54 @@ function displayExistingImages(form, sku) {
 }
 
 /**
+ * Demande le nouveau nom et met à jour l'image via l'API.
+ */
+function promptRenameServerImage(oldFileName) {
+    const newFileName = prompt("Entrez le nouveau nom de fichier :", oldFileName);
+    
+    if (newFileName && newFileName.trim() !== "" && newFileName.trim() !== oldFileName) {
+        saveCurrentSelections();
+        
+        fetch("../api/superAdmin/UPDATE/product", {
+            method: "POST",
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'rename_image',
+                product_id: product.id,
+                old_file_name: oldFileName,
+                new_file_name: newFileName.trim()
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                const index = existingImageNames.indexOf(oldFileName);
+                if (index !== -1) {
+                    existingImageNames[index] = data.newFileName;
+                }
+                displayExistingImages(document.querySelector('#superAdmin-newProductForm'), product.sku);
+                restoreSelections();
+            } else {
+                alert("Erreur lors du renommage : " + (data.message || "Problème serveur"));
+            }
+        })
+        .catch(err => console.error('Erreur réseau :', err));
+    }
+}
+
+/**
  * Supprime visuellement la miniature et enregistre son chemin pour suppression physique
  */
 function deleteServerImage(imagePath, btnElement) {
     if (confirm("Voulez-vous vraiment supprimer cette image ?")) {
-        // Ajouter le chemin à la liste des fichiers à supprimer sur le serveur
         imagesToDelete.push(imagePath);
 
-        // Retirer l'élément HTML de l'écran
         if (btnElement && btnElement.closest('.existing-image-item')) {
             btnElement.closest('.existing-image-item').remove();
         }
     }
 }
 
-/**
- * Renomme automatiquement les fichiers ajoutés en leur insérant un timestamp
- * et génère la prévisualisation visuelle.
- */
 function previewSelectedImages(input) {
     let previewContainer = document.querySelector('#new-images-preview');
     if (!previewContainer) {
@@ -308,30 +378,25 @@ function previewSelectedImages(input) {
 
     if (input.files && input.files.length > 0) {
         const dataTransfer = new DataTransfer();
-        const now = Date.now(); // Timestamp de base
+        const now = Date.now();
 
         Array.from(input.files).forEach((file, index) => {
             let newFileName = file.name;
 
-            // Découpage du nom et de l'extension
             const lastDotIndex = file.name.lastIndexOf('.');
             const nameWithoutExt = lastDotIndex !== -1 ? file.name.substring(0, lastDotIndex) : file.name;
             const ext = lastDotIndex !== -1 ? file.name.substring(lastDotIndex) : '';
 
-            // Si le fichier n'a pas encore de timestamp à la fin, on lui en ajoute un unique
             const parts = nameWithoutExt.split('-');
             const hasTimestamp = parts.length >= 3 && !isNaN(parts[parts.length - 1]);
 
             if (!hasTimestamp) {
-                // Ex: Blanc-1.webp devient Blanc-1-1711900000001.webp
                 newFileName = `${nameWithoutExt}-${now + index}${ext}`;
             }
 
-            // Création du nouveau fichier renommé
             const renamedFile = new File([file], newFileName, { type: file.type });
             dataTransfer.items.add(renamedFile);
 
-            // Prévisualisation graphique
             const reader = new FileReader();
             reader.onload = function(e) {
                 const wrapper = document.createElement('div');
@@ -345,7 +410,6 @@ function previewSelectedImages(input) {
             reader.readAsDataURL(renamedFile);
         });
 
-        // Remplacement des fichiers de l'input par les fichiers renommés
         input.files = dataTransfer.files;
     }
 }
@@ -388,14 +452,12 @@ function addVariantRow(AutoAdd = null, targetRow = null) {
     const row = document.createElement('tr');
     renderRowContent(row, values);
 
-    // Insertion au-dessus de la ligne cible si elle existe, sinon à la fin du tableau
     if (targetRow && targetRow.parentNode === tableBody) {
         tableBody.insertBefore(row, targetRow);
     } else {
         tableBody.appendChild(row);
     }
 
-    // ANIMATION : Couleur temporaire de 2 secondes
     row.style.transition = 'background-color 0.5s ease';
     row.style.backgroundColor = 'var(--light-light-accent-color)';
     setTimeout(() => {
@@ -408,6 +470,59 @@ function addVariantRow(AutoAdd = null, targetRow = null) {
     }
     checkContainers();
     return row;
+}
+
+/**
+ * Modifie un seul champ (taille, couleur, prix ou stock) sur l'ensemble des variantes cochées
+ */
+function handleCellBulkEdit(fieldType, selectedRows) {
+    const fieldLabels = {
+        size: 'la grandeur/taille',
+        color: 'la couleur',
+        price: 'le prix',
+        stock: 'le stock'
+    };
+
+    const label = fieldLabels[fieldType] || fieldType;
+    const newValue = prompt(`Entrez la nouvelle valeur pour ${label} sur les ${selectedRows.length} variantes sélectionnées :`);
+
+    if (newValue === null || newValue.trim() === "") return;
+
+    const val = newValue.trim();
+
+    selectedRows.forEach(row => {
+        if (fieldType === 'size') {
+            const sizeTd = row.querySelector('.col-size');
+            if (sizeTd) sizeTd.textContent = val;
+        } else if (fieldType === 'color') {
+            const colorTd = row.querySelector('.col-color');
+            if (colorTd) colorTd.textContent = val;
+        } else if (fieldType === 'price') {
+            let cleanPrice = val.replace('$', '').trim();
+            let numericPrice = parseFloat(cleanPrice);
+            if (!isNaN(numericPrice)) {
+                row.dataset.basePrice = numericPrice.toFixed(2);
+                const priceTd = row.querySelector('.col-price-base');
+                if (priceTd) priceTd.textContent = numericPrice.toFixed(2) + '$';
+            }
+        } else if (fieldType === 'stock') {
+            const stockTd = row.querySelector('.col-stock');
+            if (stockTd) stockTd.textContent = val;
+        }
+
+        // Animation visuelle rapide de mise à jour
+        row.style.transition = 'background-color 0.3s ease';
+        row.style.backgroundColor = 'var(--light-light-accent-color)';
+        setTimeout(() => { row.style.backgroundColor = ''; }, 1500);
+    });
+
+    // Optionnel : décocher la sélection après modification
+    const masterCb = document.getElementById('select-all-variants');
+    if (masterCb) masterCb.checked = false;
+    selectedRows.forEach(row => {
+        const cb = row.querySelector('.variant-checkbox');
+        if (cb) cb.checked = false;
+    });
 }
 
 function renderRowContent(row, data) {
@@ -423,29 +538,54 @@ function renderRowContent(row, data) {
     <td>
         <div class="actions-wrapper">
             <button type="button" class="copyBtn" title="Dupliquer"><img class='icons' src='../static-resources/default/icons/white/copy.png'></button>
-            <button type="button" class="editBtn"><img class='icons' src='../static-resources/default/icons/white/filter-2.png'></button>
-            <button type="button" class="deleteVariantBtn"><img class='icons' src='../static-resources/default/icons/white/x.png'></button>
+            <button type="button" class="editBtn" title="Éditer la ligne"><img class='icons' src='../static-resources/default/icons/white/filter-2.png'></button>
+            <button type="button" class="deleteVariantBtn" title="Supprimer"><img class='icons' src='../static-resources/default/icons/white/x.png'></button>
         </div>
     </td>
-    <td class="col-size">${data.size}</td>
-    <td class="col-color">${data.color}</td>
-    <td class="col-price-base">${!isNaN(numericPrice) ? numericPrice.toFixed(2) : '0.00'}$</td>
-    <td class="col-stock">${data.stock}</td>
+    <td class="col-size" data-field="size">${data.size}</td>
+    <td class="col-color" data-field="color">${data.color}</td>
+    <td class="col-price-base" data-field="price">${!isNaN(numericPrice) ? numericPrice.toFixed(2) : '0.00'}$</td>
+    <td class="col-stock" data-field="stock">${data.stock}</td>
     `;
 
-    // Empêcher la propagation du clic sur la checkbox
     const checkbox = row.querySelector('.variant-checkbox');
     if (checkbox) {
         checkbox.onclick = (e) => e.stopPropagation();
     }
 
-    // GESTION INTELLIGENTE DU BOUTON COPIER
+    // Gestion du clic sur le bouton d'édition classique (1 ligne ou groupe complet en inputs)
+    row.querySelector('.editBtn').onclick = (e) => {
+        if (e) e.stopPropagation();
+        const selectedRows = getSelectedVariantRows();
+        if (selectedRows.length > 1) {
+            bulkEditVariants();
+        } else {
+            makeRowEditable(row, data);
+        }
+    };
+
+    // --- GESTION DU DOUBLE-CLIC CIBLÉ SUR UNE CELLULE (Taille, Couleur, Prix, Stock) ---
+    const editableCells = row.querySelectorAll('[data-field]');
+    editableCells.forEach(cell => {
+        cell.ondblclick = (e) => {
+            e.stopPropagation();
+            const fieldType = cell.getAttribute('data-field'); // 'size', 'color', 'price' ou 'stock'
+            const selectedRows = getSelectedVariantRows();
+
+            // Si plusieurs lignes sont cochées, on applique la modif ciblée sur tout le groupe
+            if (selectedRows.length > 1) {
+                handleCellBulkEdit(fieldType, selectedRows);
+            } else {
+                // Si une seule ligne (ou aucune case cochée), on passe simplement la ligne en édition
+                makeRowEditable(row, data);
+            }
+        };
+    });
+
     row.querySelector('.copyBtn').onclick = (e) => {
         e.preventDefault();
         e.stopPropagation(); 
-        
         const selectedRows = getSelectedVariantRows();
-        
         if (selectedRows.length > 1) {
             bulkDuplicateVariants();
         } else {
@@ -453,12 +593,9 @@ function renderRowContent(row, data) {
         }
     };
 
-    // GESTION INTELLIGENTE DU BOUTON SUPPRIMER
     row.querySelector('.deleteVariantBtn').onclick = (e) => {
         e.stopPropagation();
-        
         const selectedRows = getSelectedVariantRows();
-        
         if (selectedRows.length > 1) {
             bulkDeleteVariants();
         } else {
@@ -468,21 +605,43 @@ function renderRowContent(row, data) {
             }
         }
     };
+}
 
-const editAction = (e) => {
-        if (e) e.stopPropagation();
-        const selectedRows = getSelectedVariantRows();
-        
-        // Si plus d'une ligne est cochée, on passe toute la sélection en mode édition
-        if (selectedRows.length > 1) {
-            bulkEditVariants();
-        } else {
-            makeRowEditable(row, data);
-        }
-    };
+/**
+ * Alerte ciblée pour modifier uniquement le nom d'une couleur.
+ */
+function promptEditColorOnly(oldColor) {
+    const newColor = prompt("Modifier uniquement la couleur :", oldColor);
 
-    row.querySelector('.editBtn').onclick = editAction;
-    row.ondblclick = editAction;
+    if (newColor && newColor.trim() !== "" && newColor.trim() !== oldColor) {
+        saveCurrentSelections();
+
+        fetch("../api/superAdmin/UPDATE/product", {
+            method: "POST",
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'update_variant_color',
+                product_id: product.id,
+                old_color: oldColor,
+                new_color: newColor.trim()
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                document.querySelectorAll('#variants-body tr').forEach(row => {
+                    const colorTd = row.querySelector('.col-color');
+                    if (colorTd && colorTd.textContent.trim() === oldColor) {
+                        colorTd.textContent = newColor.trim();
+                    }
+                });
+                restoreSelections();
+            } else {
+                alert("Erreur lors de la mise à jour : " + (data.message || "Erreur serveur"));
+            }
+        })
+        .catch(err => console.error('Erreur réseau :', err));
+    }
 }
 
 function makeRowEditable(row, oldData, groupEditContext = null) {
@@ -505,7 +664,6 @@ function makeRowEditable(row, oldData, groupEditContext = null) {
     row.querySelector('.saveBtn').onclick = (e) => {
         e.stopPropagation();
         
-        // Si on est dans un contexte d'édition groupée, on sauvegarde tout le groupe
         if (groupEditContext) {
             groupEditContext.saveAll();
         } else {
@@ -522,7 +680,6 @@ function makeRowEditable(row, oldData, groupEditContext = null) {
             }
             renderRowContent(row, newData);
             
-            // Animation de 2 sec
             row.style.transition = 'background-color 0.5s ease';
             row.style.backgroundColor = 'var(--light-light-accent-color)';
             setTimeout(() => { row.style.backgroundColor = ''; }, 2000);
@@ -575,22 +732,11 @@ function addNewCategory(AutoAdd) {
     checkContainers();
 }
 
-/**
- * Enregistre et met à jour les données du produit via l'API backend.
- */
-/**
- * Soumission du formulaire
- */
-/**
- * Soumission complète du formulaire de mise à jour du produit.
- * Récupère tous les champs du formulaire, les catégories, les variantes
- * ainsi que les images visibles à l'écran + les nouveaux fichiers.
- */
 function updateProduct() {
+    saveCurrentSelections();
     const submitBtn = document.querySelector('#submitBtn');
     
-    // 1. Vérification si des variantes sont en cours d'édition
-    const activeInputs = document.querySelectorAll('#variants-body input');
+    const activeInputs = document.querySelectorAll('#variants-body input[type="text"], #variants-body input[type="number"]');
     if (activeInputs.length > 0) {
         alert("Attention : Vous avez des variantes en cours d'édition. Veuillez valider ou annuler vos modifications avant d'enregistrer le produit.");
         if (submitBtn) submitBtn.classList.remove('loading');
@@ -604,11 +750,9 @@ function updateProduct() {
     let form = document.querySelector('#superAdmin-newProductForm');
     const formData = new FormData(form);
 
-    // 2. Ajout des identifiants clés du produit
     formData.append('id', product.id);
     formData.append('old_sku', product.sku);
 
-    // 3. Encodage en Base64 des descriptions et détails texte
     const fieldsToEncode = [
         'description', 'blankDetails', 'embroideryDetails',
         'customPersonalizationDetails', 'tampographieDetails',
@@ -622,7 +766,6 @@ function updateProduct() {
         }
     });
 
-    // 4. Gestion sécurisée des commutateurs (Switches : 1 ou 0)
     const setCheckbox = (name) => {
         const cb = form.querySelector(`input[name="${name}"]`);
         if (cb) formData.set(name, cb.checked ? "1" : "0");
@@ -630,14 +773,12 @@ function updateProduct() {
 
     ['active', 'customPersonalization', 'blank', 'dtf', 'broderie', 'tampographie', 'vividPrint', 'screenPrint', 'engraving', 'patch', 'uvdtf'].forEach(setCheckbox);
 
-    // 5. Collecte des catégories attribuées au produit
     const categories = [];
     document.querySelectorAll('#ownedCategory [data-category]').forEach(div => {
         categories.push(div.getAttribute('data-category'));
     });
     formData.append('categories', JSON.stringify(categories));
 
-    // 6. Collecte du tableau des variantes (Taille, Couleur, Prix, Stock)
     const variants = [];
     document.querySelectorAll('#variants-body tr').forEach(row => {
         if (row.dataset.basePrice) {
@@ -651,7 +792,6 @@ function updateProduct() {
     });
     formData.append('variants', JSON.stringify(variants));
 
-    // 7. RECUPERATION DES IMAGES EXISTANTES VISIBLES A L'ECRAN
     const visibleExistingImages = [];
     document.querySelectorAll('#existing-images-preview .existing-image-item').forEach(item => {
         const fileName = item.getAttribute('data-filename');
@@ -660,7 +800,6 @@ function updateProduct() {
         }
     });
 
-    // 8. RECUPERATION DES NOUVELLES IMAGES DU INPUT FILE
     const imgInput = form.querySelector('#img');
     const newImageNames = [];
     if (imgInput && imgInput.files) {
@@ -669,14 +808,11 @@ function updateProduct() {
         });
     }
 
-    // 9. FUSION DES LISTES D'IMAGES
     const finalImgNames = [...visibleExistingImages, ...newImageNames];
 
-    // Transmettre la liste d'images et les chemins à supprimer au serveur
     formData.append('imgNames', JSON.stringify(finalImgNames));
     formData.append('deleteImages', JSON.stringify(imagesToDelete));
 
-    // 10. Envoi au serveur API PHP
     fetch("../api/superAdmin/UPDATE/product", {
         method: "POST",
         body: formData
@@ -730,43 +866,6 @@ function addElementAfterElementId(elementId, message) {
     }
 }
 
-function renderExistingImage(displaySrc, cleanFilePath, container) {
-    const img = new Image();
-    img.decoding = "async";
-    img.src = displaySrc;
-    
-    const fileName = cleanFilePath.split('/').pop();
-
-    img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        const size = 80;
-        canvas.width = size;
-        canvas.height = size;
-
-        ctx.drawImage(img, 0, 0, size, size);
-        const miniDataUrl = canvas.toDataURL('image/jpeg', 0.1);
-
-        const wrapper = document.createElement('div');
-        wrapper.className = 'existing-image-wrapper';
-        wrapper.style.position = 'relative';
-
-        wrapper.innerHTML = `
-            <img src="${miniDataUrl}" 
-                 title="${fileName}" 
-                 style="width: 80px; height: 80px; object-fit: cover; border-radius: 4px; border: 1px solid #ccc; cursor: help;">
-            <button type="button" 
-                    class="deleteImgBtn" 
-                    onclick="deleteServerImage('${cleanFilePath}', this)">
-                x
-            </button>
-        `;
-        container.appendChild(wrapper);
-        img.src = "";
-    };
-    img.onerror = () => {}; 
-}
-
 function filterVariants() {
     const input = document.getElementById('variant-search');
     if (!input) return;
@@ -789,36 +888,6 @@ function filterVariants() {
         }
         row.style.display = matchFound ? "" : "none";
     }
-}
-
-function addNewEmptyVariantRow() {
-    const tbody = document.getElementById('variants-body');
-    const container = document.getElementById('variants-container');
-    
-    if (container) container.classList.remove('hidden');
-
-    const row = document.createElement('tr');
-    const emptyData = { size: "", color: "", price: "", stock: "" };
-
-    makeRowEditable(row, emptyData);
-    if (tbody) tbody.prepend(row);
-    
-    const firstInput = row.querySelector('input');
-    if (firstInput) firstInput.focus();
-}
-
-function duplicateVariant(data) {
-    const tbody = document.getElementById('variants-body');
-    const newRow = document.createElement('tr');
-    const dataCopy = JSON.parse(JSON.stringify(data));
-
-    makeRowEditable(newRow, dataCopy);
-    if (tbody) tbody.prepend(newRow);
-    
-    const sizeInput = newRow.querySelector('.edit-size');
-    if (sizeInput) sizeInput.focus();
-    
-    checkContainers();
 }
 
 function displayExistingTechnicalFile(sku) {
@@ -863,9 +932,8 @@ function displayExistingTechnicalFile(sku) {
         .catch(() => {
             previewContainer.style.display = 'none';
         });
-}/**
- * Récupère les éléments HTML des lignes cochées
- */
+}
+
 function getSelectedVariantRows() {
     const selectedRows = [];
     document.querySelectorAll('#variants-body tr').forEach(row => {
@@ -877,9 +945,6 @@ function getSelectedVariantRows() {
     return selectedRows;
 }
 
-/**
- * Duplique une seule variante (au-dessus d'une ligne spécifique si fournie)
- */
 function duplicateVariant(data, targetRow = null) {
     addVariantRow({
         size: data.size,
@@ -889,133 +954,6 @@ function duplicateVariant(data, targetRow = null) {
     }, targetRow);
 }
 
-/**
- * Duplique l'ensemble des variantes cochées et les insère au-dessus de la PREMIÈRE sélection
- */
-function bulkDuplicateVariants() {
-    const selectedRows = getSelectedVariantRows();
-
-    if (selectedRows.length === 0) return;
-
-    // La première ligne sélectionnée servira de repère pour l'insertion au-dessus
-    const firstSelectedRow = selectedRows[0];
-
-    // On parcourt chaque ligne pour récupérer les données
-    selectedRows.forEach(row => {
-        const data = {
-            size: row.querySelector('.col-size')?.textContent.trim() || '',
-            color: row.querySelector('.col-color')?.textContent.trim() || '',
-            price: row.dataset.basePrice || '0.00',
-            stock: row.querySelector('.col-stock')?.textContent.trim() || ''
-        };
-        
-        // Insère chaque copie au-dessus de la première ligne sélectionnée
-        duplicateVariant(data, firstSelectedRow);
-    });
-
-    // Décoche la case en-tête ainsi que toutes les lignes après duplication
-    const masterCb = document.getElementById('select-all-variants');
-    if (masterCb) masterCb.checked = false;
-    
-    selectedRows.forEach(row => {
-        const cb = row.querySelector('.variant-checkbox');
-        if (cb) cb.checked = false;
-    });
-}
-
-/**
- * Supprime l'ensemble des variantes cochées
- */
-function bulkDeleteVariants() {
-    const selectedRows = getSelectedVariantRows();
-    
-    if (selectedRows.length === 0) return;
-
-    if (confirm(`Voulez-vous vraiment supprimer les ${selectedRows.length} variantes sélectionnées ?`)) {
-        selectedRows.forEach(row => row.remove());
-        
-        const masterCb = document.getElementById('select-all-variants');
-        if (masterCb) masterCb.checked = false;
-
-        checkContainers();
-    }
-}
-
-/**
- * Passe l'ensemble des lignes cochées en mode édition simultané
- */
-function bulkEditVariants() {
-    const selectedRows = getSelectedVariantRows();
-    if (selectedRows.length === 0) return;
-
-    // Récupération des données d'origine pour chaque ligne sélectionnée
-    const rowsData = selectedRows.map(row => ({
-        row: row,
-        oldData: {
-            size: row.querySelector('.col-size')?.textContent.trim() || '',
-            color: row.querySelector('.col-color')?.textContent.trim() || '',
-            price: row.dataset.basePrice || '0.00',
-            stock: row.querySelector('.col-stock')?.textContent.trim() || ''
-        }
-    }));
-
-    // Gestionnaire partagé pour valider/annuler toutes les lignes cochées
-    const groupEditContext = {
-        saveAll: () => {
-            let hasError = false;
-            
-            // Vérification de la validité de toutes les lignes
-            rowsData.forEach(item => {
-                const size = item.row.querySelector('.edit-size')?.value.trim();
-                const color = item.row.querySelector('.edit-color')?.value.trim();
-                const price = item.row.querySelector('.edit-price')?.value.trim();
-                if (!size || !color || !price) {
-                    hasError = true;
-                }
-            });
-
-            if (hasError) {
-                alert("Veuillez remplir au moins la taille, la couleur et le prix pour toutes les variantes en cours d'édition.");
-                return;
-            }
-
-            // Enregistrement et animation des lignes
-            rowsData.forEach(item => {
-                const newData = {
-                    size: item.row.querySelector('.edit-size').value.trim(),
-                    color: item.row.querySelector('.edit-color').value.trim(),
-                    price: item.row.querySelector('.edit-price').value.trim(),
-                    stock: item.row.querySelector('.edit-stock').value.trim(),
-                };
-                renderRowContent(item.row, newData);
-
-                // Animation visuelle de 2 secondes
-                item.row.style.transition = 'background-color 0.5s ease';
-                item.row.style.backgroundColor = 'var(--light-light-accent-color)';
-                setTimeout(() => { item.row.style.backgroundColor = ''; }, 2000);
-            });
-
-            const masterCb = document.getElementById('select-all-variants');
-            if (masterCb) masterCb.checked = false;
-        },
-        cancelAll: () => {
-            rowsData.forEach(item => {
-                renderRowContent(item.row, item.oldData);
-            });
-            const masterCb = document.getElementById('select-all-variants');
-            if (masterCb) masterCb.checked = false;
-        }
-    };
-
-    // Rendre toutes les lignes sélectionnées éditables
-    rowsData.forEach(item => {
-        makeRowEditable(item.row, item.oldData, groupEditContext);
-    });
-}
-
-/**
- * Helper : demande à l'utilisateur s'il souhaite écraser collectivement certains champs
- */
 function askForBulkOverrides() {
     const overrides = {};
 
@@ -1038,49 +976,14 @@ function askForBulkOverrides() {
     return overrides;
 }
 
-/**
- * Duplique l'ensemble des variantes cochées et les insère au-dessus de la PREMIÈRE sélection
- */
-/**
- * Helper : demande à l'utilisateur s'il souhaite écraser collectivement certains champs
- */
-function askForBulkOverrides() {
-    const overrides = {};
-
-    const fields = [
-        { key: 'size', label: 'la taille' },
-        { key: 'color', label: 'la couleur' },
-        { key: 'price', label: 'le prix' },
-        { key: 'stock', label: 'le stock' }
-    ];
-
-    fields.forEach(field => {
-        if (confirm(`Voulez-vous modifier ${field.label} de TOUTES les variantes sélectionnées ?`)) {
-            const newValue = prompt(`Entrez la nouvelle valeur pour ${field.label} :`);
-            if (newValue !== null && newValue.trim() !== "") {
-                overrides[field.key] = newValue.trim();
-            }
-        }
-    });
-
-    return overrides;
-}
-
-/**
- * Duplique l'ensemble des variantes cochées et les insère au-dessus de la PREMIÈRE sélection
- */
 function bulkDuplicateVariants() {
     const selectedRows = getSelectedVariantRows();
 
     if (selectedRows.length === 0) return;
 
-    // Demande à l'utilisateur les surcharges éventuelles (taille, couleur, prix, stock)
     const overrides = askForBulkOverrides();
-
-    // La première ligne sélectionnée servira de repère pour l'insertion au-dessus
     const firstSelectedRow = selectedRows[0];
 
-    // On parcourt chaque ligne pour récupérer les données et appliquer les surcharges si présentes
     selectedRows.forEach(row => {
         const data = {
             size: overrides.size !== undefined ? overrides.size : (row.querySelector('.col-size')?.textContent.trim() || ''),
@@ -1089,11 +992,9 @@ function bulkDuplicateVariants() {
             stock: overrides.stock !== undefined ? overrides.stock : (row.querySelector('.col-stock')?.textContent.trim() || '')
         };
         
-        // Insère chaque copie au-dessus de la première ligne sélectionnée
         duplicateVariant(data, firstSelectedRow);
     });
 
-    // Décoche la case en-tête ainsi que toutes les lignes après duplication
     const masterCb = document.getElementById('select-all-variants');
     if (masterCb) masterCb.checked = false;
     
@@ -1103,9 +1004,6 @@ function bulkDuplicateVariants() {
     });
 }
 
-/**
- * Supprime l'ensemble des variantes cochées
- */
 function bulkDeleteVariants() {
     const selectedRows = getSelectedVariantRows();
     
@@ -1121,17 +1019,12 @@ function bulkDeleteVariants() {
     }
 }
 
-/**
- * Passe l'ensemble des lignes cochées en mode édition simultané
- */
 function bulkEditVariants() {
     const selectedRows = getSelectedVariantRows();
     if (selectedRows.length === 0) return;
 
-    // Demande à l'utilisateur les surcharges éventuelles (taille, couleur, prix, stock)
     const overrides = askForBulkOverrides();
 
-    // Récupération des données d'origine pour chaque ligne sélectionnée + application des surcharges
     const rowsData = selectedRows.map(row => {
         const defaultSize = row.querySelector('.col-size')?.textContent.trim() || '';
         const defaultColor = row.querySelector('.col-color')?.textContent.trim() || '';
@@ -1155,12 +1048,10 @@ function bulkEditVariants() {
         };
     });
 
-    // Gestionnaire partagé pour valider/annuler toutes les lignes cochées
     const groupEditContext = {
         saveAll: () => {
             let hasError = false;
             
-            // Vérification de la validité de toutes les lignes
             rowsData.forEach(item => {
                 const size = item.row.querySelector('.edit-size')?.value.trim();
                 const color = item.row.querySelector('.edit-color')?.value.trim();
@@ -1175,7 +1066,6 @@ function bulkEditVariants() {
                 return;
             }
 
-            // Enregistrement et animation des lignes
             rowsData.forEach(item => {
                 const newData = {
                     size: item.row.querySelector('.edit-size').value.trim(),
@@ -1185,7 +1075,6 @@ function bulkEditVariants() {
                 };
                 renderRowContent(item.row, newData);
 
-                // Animation visuelle de 2 secondes
                 item.row.style.transition = 'background-color 0.5s ease';
                 item.row.style.backgroundColor = 'var(--light-light-accent-color)';
                 setTimeout(() => { item.row.style.backgroundColor = ''; }, 2000);
@@ -1203,30 +1092,7 @@ function bulkEditVariants() {
         }
     };
 
-    // Rendre toutes les lignes sélectionnées éditables avec pré-remplissage des valeurs choisies
     rowsData.forEach(item => {
         makeRowEditable(item.row, item.editData, groupEditContext);
     });
 }
-
-/**
- * Supprime l'ensemble des variantes cochées
- */
-function bulkDeleteVariants() {
-    const selectedRows = getSelectedVariantRows();
-    
-    if (selectedRows.length === 0) return;
-
-    if (confirm(`Voulez-vous vraiment supprimer les ${selectedRows.length} variantes sélectionnées ?`)) {
-        selectedRows.forEach(row => row.remove());
-        
-        const masterCb = document.getElementById('select-all-variants');
-        if (masterCb) masterCb.checked = false;
-
-        checkContainers();
-    }
-}
-
-/**
- * Passe l'ensemble des lignes cochées en mode édition simultané
- */

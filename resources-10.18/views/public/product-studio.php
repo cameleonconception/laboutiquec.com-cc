@@ -45,7 +45,7 @@
             <textarea id="description" name="description" placeholder="Notre tuque classique est ..."></textarea>
 
             <label for="supplier">Fournisseur</label>
-            <select id="supplier" name="supplier">
+            <select id="supplier" name="supplier" onchange="saveCurrentSelections()">
                 <option value="">Choisir un fournisseur</option>
             </select>
 
@@ -140,7 +140,6 @@
             </label>
             <textarea id="customPersonalizationDetails" name="customPersonalizationDetails" placeholder="Mettre le html à afficher pour les options personnalisées"  style="display:none;"></textarea>
 
-
             <label for="blankDetails" id="blankDetailsLabel" style="display:none;">
                 Détails du prix blank
                 <img title="Copier la syntaxe" 
@@ -158,7 +157,8 @@
                      style="cursor: pointer; width: 16px; margin-left: 5px;">
             </label>
             <textarea id="embroideryDetails" name="embroideryDetails" placeholder="Mettre le html à afficher pour la broderie"  style="display:none;"></textarea>
-<label for="tampographieDetails" id="tampographieDetailsLabel" style="display:none;">
+
+            <label for="tampographieDetails" id="tampographieDetailsLabel" style="display:none;">
                 Détails de tampographie
                 <img title="Copier la syntaxe" 
                     onclick="navigator.clipboard.writeText(\'' . $encodedPersonalizationDetailsPlaceholder . '\')" 
@@ -166,7 +166,6 @@
                      style="cursor: pointer; width: 16px; margin-left: 5px;">
             </label>
             <textarea id="tampographieDetails" name="tampographieDetails" placeholder="Mettre le html à afficher pour la tampographie"  style="display:none;"></textarea>
-            
             
             <label for="vividPrintDetails" id="vividPrintDetailsLabel" style="display:none;">
                 Détails de l\'impression vivid personnalisé
@@ -204,73 +203,80 @@
             </label>
             <textarea id="patchDetails" name="patchDetails" placeholder="Mettre le html à afficher pour l\'écusson par laser"  style="display:none;"></textarea>
 
-            
             <label for="zoom">Zoom du canva</label>
             <input id="zoom" name="zoom" type="number" placeholder="1.75">
 
+            <label for="new-category">Catégories</label>
+            <div class="flex-row" id="new-category-div">
+                <input list="categories-list" id="new-category" name="new-category" placeholder="Vêtements">
+                <button type="button" id="new-category-btn" onclick="addNewCategory()">+</button>
+                <datalist id="categories-list"></datalist>
+            </div>
+            <div id="ownedCategory" class="hidden"></div>
 
-                        <label for="new-category">Catégories</label>
-                        <div class="flex-row" id="new-category-div">
-                        <input list="categories-list" id="new-category" name="new-category" placeholder="Vêtements">
-                        <button type="button" id="new-category-btn" onclick="addNewCategory()">+</button>
-                        <datalist id="categories-list"></datalist>
-                        </div>
-                        <div id="ownedCategory" class="hidden"></div>
+            <label style="display: flex; align-items: center; gap: 10px;">Variantes 
+                <button type="button" class="add-variant-main-btn" onclick="addNewEmptyVariantRow()" 
+                        style="width: 25px; height: 25px; padding: 0; line-height: 1;">+</button>
+            </label>
 
-                        <label style="display: flex; align-items: center; gap: 10px;">Variantes 
-            <button type="button" class="add-variant-main-btn" onclick="addNewEmptyVariantRow()" 
-                    style="width: 25px; height: 25px; padding: 0; line-height: 1;">+</button>
-        </label>
+            <div class="table-search-wrapper">
+                <input type="text" id="variant-search" placeholder="Rechercher une variante" onkeyup="filterVariants()">
+            </div>
 
-<div class="table-search-wrapper">
-    <input type="text" id="variant-search" placeholder="Rechercher une variante" onkeyup="filterVariants()">
-</div>
+            <div id="variants-container" class="table-scroll-wrapper">
+                <table id="variants-table" class="product-summary-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 30px; text-align: center;">
+                                <input type="checkbox" id="select-all-variants" onclick="toggleSelectAllVariants(this)">
+                            </th>
+                            <th>Actions</th>
+                            <th>Taille</th>
+                            <th>Couleur</th>
+                            <th>Prix</th>
+                            <th>Stock</th>
+                        </tr>
+                    </thead>
+                    <tbody id="variants-body">
+                    </tbody>
+                </table>
+                <datalist id="sizes-list"></datalist>
+                <datalist id="colors-list"></datalist>
+            </div>
 
-<div id="variants-container" class="table-scroll-wrapper">
-    <table id="variants-table" class="product-summary-table">
-        <thead>
-            <tr>
-                <th colspan="2">Actions</th>
-                <th>Taille</th>
-                <th>Couleur</th>
-                <th>Prix</th>
-                <th>Stock</th>
-            </tr>
-        </thead>
-        <tbody id="variants-body">
-            </tbody>
-    </table>
-    <datalist id="sizes-list"></datalist>
-    <datalist id="colors-list"></datalist>
-</div>
+            <label for="img">Images</label>
+            <input type="file" id="img" name="img[]" multiple>
 
-                        <label for="img">Images</label>
-                        <input type="file" id="img" name="img[]" multiple>
+            <label for="technicalFile">Fiche technique</label>
+            <input id="technicalFile" name="technicalFile" type="file" accept=".pdf">
 
-                        <label for="technicalFile">Fiche technique</label>
-                        <input id="technicalFile" name="technicalFile" type="file" accept=".pdf">
+            <label for="active">Afficher sur la boutique</label>
+            <label class="switch">
+                <input name="active" type="checkbox" value="0">
+                <span class="slider round"></span>
+            </label>
 
-                        <label for="active">Afficher sur la boutique</label>
-                        <label class="switch">
-                        <input name="active" type="checkbox" value="0">
-                        <span class="slider round"></span>
-                        </label>
-
-                        <button id="submitBtn" type="button" onclick="updateProduct();">Sauvegarder le produit</button>
-                        <button id="duplicateProductBtn" class="secondary" type="button" onclick="duplicateProduct()">Dupliquer le produit</button>
-                        <button id="" class="secondary" type="button" onclick="location.reload()">Annuler</button>
-                        <button id="deleteProduct" class="secondary" type="button" onclick="deleteProduct()">Supprimer le produit</button>
-                    </form>
-                    </div>
-                ';
-            }
-            ?>
-        <div id="product-details-container">
-
-        </div>
+            <button id="submitBtn" type="button" onclick="updateProduct();">Sauvegarder le produit</button>
+            <button id="duplicateProductBtn" class="secondary" type="button" onclick="duplicateProduct()">Dupliquer le produit</button>
+            <button id="" class="secondary" type="button" onclick="location.reload()">Annuler</button>
+            <button id="deleteProduct" class="secondary" type="button" onclick="deleteProduct()">Supprimer le produit</button>
+        </form>
+    </div>';
+}
+?>
+        <div id="product-details-container"></div>
      </section>
 </main>
 
+<script>
+// Helper simple pour sélectionner/désélectionner toutes les cases à cocher des variantes
+function toggleSelectAllVariants(masterCb) {
+    const checkboxes = document.querySelectorAll('#variants-body .variant-checkbox');
+    checkboxes.forEach(cb => {
+        cb.checked = masterCb.checked;
+    });
+}
+</script>
 
 <?php
     require_once($absoluteResources.'/layouts/footer.php');

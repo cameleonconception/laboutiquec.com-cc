@@ -2,8 +2,36 @@
 require_once('classes/API/Products.php');
 
 header('Content-Type: application/json');
- 
-// 1. Récupération de l'ID (Indispensable pour savoir quel produit modifier)
+
+// --- 0. TRAITEMENT DES ACTIONS AJAX SPÉCIFIQUES (JSON) ---
+$rawInput = file_get_contents('php://input');
+$jsonInput = json_decode($rawInput, true);
+
+if (isset($jsonInput['action'])) {
+    $product = new Products();
+
+    switch ($jsonInput['action']) {
+        case 'update_variant_color':
+            $oldColor = $jsonInput['old_color'] ?? '';
+            $newColor = $jsonInput['new_color'] ?? '';
+            $productId = $jsonInput['product_id'] ?? null;
+
+            $result = $product->updateVariantColor($oldColor, $newColor, $productId);
+            echo json_encode($result);
+            exit();
+
+        case 'rename_image':
+            $productId = $jsonInput['product_id'] ?? null;
+            $oldFileName = $jsonInput['old_file_name'] ?? '';
+            $newFileName = $jsonInput['new_file_name'] ?? '';
+
+            $result = $product->renameProductImage($productId, $oldFileName, $newFileName);
+            echo json_encode($result);
+            exit();
+    }
+}
+
+// --- 1. TRAITEMENT STANDARD (Formulaire complet) ---
 $id = $_POST['id'] ?? null;
 $sku = $_POST['sku'] ?? '';
 $oldSku = $_POST['old_sku'] ?? '';
@@ -30,19 +58,14 @@ $vividPrintDetails = $_POST['vividPrintDetails'] ?? '';
 $screenPrintDetails = $_POST['screenPrintDetails'] ?? '';
 $engravingDetails = $_POST['engravingDetails'] ?? '';
 $patchDetails = $_POST['patchDetails'] ?? '';
-// On récupère la valeur, on retire les espaces, et si c'est vide, on met NULL
-$supplierId = !empty(trim($_POST['supplier'])) ? $_POST['supplier'] : null;
 
-// Gestion de la personnalisation (On transforme le texte vide en null pour la BD)
+$supplierId = !empty(trim($_POST['supplier'])) ? $_POST['supplier'] : null;
 $personalization = ($_POST['personalization'] === 'null' || empty(trim($_POST['personalization']))) ? null : $_POST['personalization'];
 
-// 2. Décodage des données complexes envoyées en JSON par le JS
 $categories = json_decode($_POST['categories'] ?? '[]', true);
 $variants = json_decode($_POST['variants'] ?? '[]', true);
 $deleteImages = json_decode($_POST['deleteImages'] ?? '[]', true);
 
-
-// 3. Validations de base
 if (!$id) {
     echo json_encode(['success' => false, 'message' => 'L\'ID du produit est manquant pour la mise à jour.']);
     exit();
@@ -53,7 +76,6 @@ if (empty(trim($sku))) {
     exit();
 }
 
-// 4. Validations spécifiques si le produit doit être Actif
 if ($active === '1') {
     if (empty(trim($name))) {
         echo json_encode(['success' => false, 'message' => 'Un nom est requis pour un produit actif.']);
@@ -69,13 +91,8 @@ if ($active === '1') {
     }
 }
 
-// 5. Appel à la logique métier
 $product = new Products();
 $result = $product->updateProduct($_POST, $_FILES, $categories, $variants, $personalization, $supplierId, $imgNames);
 
-// 6. Retour de la réponse finale vers le JS
 echo json_encode($result);
 exit();
-
-
-

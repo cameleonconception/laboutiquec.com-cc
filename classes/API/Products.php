@@ -20,7 +20,146 @@ class Products
         error_log("\n==== DEBUG : $label ====\n$dump\n", 3, __DIR__ . '/logs/php_errors.log');
     }
 
+// ---------------------------------------------------------
+    // MISE À JOUR RAPIDE D'UNE COULEUR DE VARIANTE
+    // ---------------------------------------------------------
+    public function updateVariantColor($oldColorName, $newColorName, $productId)
+    {
+        $dbConnection = new Connection();
+        $pdo = $dbConnection->getPDO();
 
+        $oldColorName = trim($oldColorName);
+        $newColorName = trim($newColorName);
+        $productId = (int)$productId;
+
+        if (empty($oldColorName) || empty($newColorName) || $productId <= 0) {
+            return ['success' => false, 'message' => 'Données invalides pour la modification de couleur.'];
+        }
+
+        try {
+            $pdo->beginTransaction();
+
+            // 1. Récupération ou création de la nouvelle couleur dans la table 'colors'
+            $stmtC = $pdo->prepare("SELECT id FROM colors WHERE name = ?");
+            $stmtC->execute([$newColorName]);
+            $newColorId = $stmtC->fetchColumn();
+
+            if (!$newColorId) {
+                $stmtIns = $pdo->prepare("INSERT INTO colors (name) VALUES (?)");
+                $stmtIns->execute([$newColorName]);
+                $newColorId = $pdo->lastInsertId();
+            }
+
+            // 2. Récupération de l'ID de l'ancienne couleur
+            $stmtOldC = $pdo->prepare("SELECT id FROM colors WHERE name = ?");
+            $stmtOldC->execute([$oldColorName]);
+            $oldColorId = $stmtOldC->fetchColumn();
+
+            if ($oldColorId) {
+                // 3. Mise à jour des déclinaisons de ce produit dans 'product_size_color_price'
+                $stmtUpdate = $pdo->prepare("
+                    UPDATE product_size_color_price 
+                    SET color_id = ? 
+                    WHERE product_id = ? AND color_id = ?
+                ");
+                $stmtUpdate->execute([$newColorId, $productId, $oldColorId]);
+            }
+
+            $pdo->commit();
+            return ['success' => true, 'message' => 'Couleur mise à jour avec succès.'];
+
+        } catch (\Exception $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return ['success' => false, 'message' => 'Erreur SQL : ' . $e->getMessage()];
+        }
+    }
+
+    // ---------------------------------------------------------
+    // RENOMMER UNE IMAGE SUR LE DISQUE ET DANS imgNames
+    // ---------------------------------------------------------
+    public function renameProductImage($productId, $oldFileName, $newFileName)
+    {
+        $dbConnection = new Connection();
+        $pdo = $dbConnection->getPDO();
+
+        $productId = (int)$productId;
+        $oldFileName = basename(trim($oldFileName));
+        $newFileName = basename(trim($newFileName));
+
+        if ($productId <= 0 || empty($oldFileName) || empty($newFileName)) {
+            return ['success' => false, 'message' => 'Paramètres invalides pour le renommage d\'image.'];
+        }
+
+        // S'assurer que le nouveau nom conserve l'extension si elle a été omise
+        $oldExt = pathinfo($oldFileName, PATHINFO_EXTENSION);
+        $newExt = pathinfo($newFileName, PATHINFO_EXTENSION);
+
+        if (empty($newExt) && !empty($oldExt)) {
+            $newFileName .= '.' . $oldExt;
+        }
+
+        try {
+            $pdo->beginTransaction();
+
+            // 1. Récupération du SKU et du champ imgNames en BDD
+            $stmt = $pdo->prepare("SELECT sku, imgNames FROM products WHERE id = ?");
+            $stmt->execute([$productId]);
+            $product = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$product) {
+                return ['success' => false, 'message' => 'Produit introuvable.'];
+            }
+
+            $sku = $product['sku'];
+            $imgNamesRaw = $product['imgNames'];
+
+            // Décodage de la liste des images
+            $imgList = [];
+            if (!empty($imgNamesRaw)) {
+                $decoded = is_array($imgNamesRaw) ? $imgNamesRaw : json_decode($imgNamesRaw, true);
+                if (is_array($decoded)) {
+                    $imgList = $decoded;
+                }
+            }
+
+            // 2. Mise à jour physique du fichier sur le serveur
+            $basePath = dirname(__DIR__, 2);
+            $productDir = $basePath . "/static-resources/products/" . $sku . "/";
+            $oldFilePath = $productDir . $oldFileName;
+            $newFilePath = $productDir . $newFileName;
+
+            if (file_exists($oldFilePath)) {
+                if (!rename($oldFilePath, $newFilePath)) {
+                    throw new \Exception("Impossible de renommer le fichier physique sur le serveur.");
+                }
+            }
+
+            // 3. Remplacement dans la liste JSON
+            $updatedList = array_map(function($item) use ($oldFileName, $newFileName) {
+                return ($item === $oldFileName) ? $newFileName : $item;
+            }, $imgList);
+
+            // 4. Sauvegarde de la nouvelle liste JSON dans 'imgNames'
+            $stmtUpdate = $pdo->prepare("UPDATE products SET imgNames = ? WHERE id = ?");
+            $stmtUpdate->execute([json_encode($updatedList, JSON_UNESCAPED_UNICODE), $productId]);
+
+            $pdo->commit();
+
+            return [
+                'success'      => true,
+                'message'      => 'Image renommée avec succès.',
+                'newFileName'  => $newFileName
+            ];
+
+        } catch (\Exception $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            return ['success' => false, 'message' => 'Erreur : ' . $e->getMessage()];
+        }
+    }
 public function getProducts($page, $query, $categories, $colors) {
     $profile = new Profile();
     $userId = $profile->getUserInfo_id();
