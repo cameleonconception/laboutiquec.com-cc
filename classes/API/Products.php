@@ -1754,12 +1754,18 @@ public function updateProduct($post, $files, $categories, $variants, $personaliz
             }
         }
 
+        // 6.b. Gestion des images de COULEUR téléversées
+        if (isset($files['color_imgs']) && !empty($files['color_imgs']['name'][0])) {
+            $this->uploadColorImage($files['color_imgs']);
+        }
+
         // 7. Gestion de la FICHE TECHNIQUE
         if (isset($files['technicalFile']) && $files['technicalFile']['error'] === UPLOAD_ERR_OK) {
             $pdfDest = $newPath . "/Fiche technique.pdf";
             move_uploaded_file($files['technicalFile']['tmp_name'], $pdfDest);
         }
 
+        
         $pdo->commit();
 
         return [

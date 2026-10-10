@@ -35,9 +35,6 @@
             <div onclick=\"selectView(event, 'dash-usersContainer');loadAndRenderUsers();\">
                 Utilisateurs
             </div>
-            <div onclick=\"selectView(event,'dash-resources')\">
-                Ressources
-            </div>
             <div onclick=\"selectView(event,'dash-suppliers');loadExistingSuppliers();\">
                 Fournisseurs
             </div>
@@ -53,14 +50,6 @@
             <div id="dash-usersContainer" class="notSelectedView dash-container">
                 <h1>Utilisateurs</h1>
                 <p>Chargement...</p>
-            </div>
-            <div id="dash-resources" class="notSelectedView dash-container">
-                <h1>Ressources</h1>
-                <form id="admin-color-upload-form" enctype="multipart/form-data">
-                <label for="color_imgs">Ajouter les miniatures de couleurs (WebP)</label>
-                <input type="file" id="color_imgs" name="color_imgs[]" accept="image/*" multiple>
-                <button type="button" onclick="uploadMultipleColors()">Uploader tout</button>
-                </form>
             </div>
             <div id="dash-suppliers" class="notSelectedView dash-container">
                 

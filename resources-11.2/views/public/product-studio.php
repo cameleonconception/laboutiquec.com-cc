@@ -250,6 +250,9 @@
             <label for="technicalFile">Fiche technique</label>
             <input id="technicalFile" name="technicalFile" type="file" accept=".pdf">
 
+            <label for="color_imgs">Couleurs (WebP)</label>
+            <input type="file" id="color_imgs" name="color_imgs[]" accept="image/*" multiple>
+
             <label for="active">Afficher sur la boutique</label>
             <label class="switch">
                 <input name="active" type="checkbox" value="0">

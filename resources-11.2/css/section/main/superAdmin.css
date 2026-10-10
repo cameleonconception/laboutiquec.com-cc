@@ -148,7 +148,15 @@
     position: absolute;
     top:-5px;
     right:-5px;
-    
+}
+
+#existing-color-images-preview, #existing-images-preview {
+    max-height: 250px;
+    overflow-y: auto;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 12.5px !important;
 }
 
 /* Conteneur de l'image et overlay */

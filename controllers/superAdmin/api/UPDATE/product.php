@@ -28,6 +28,39 @@ if (isset($jsonInput['action'])) {
             $result = $product->renameProductImage($productId, $oldFileName, $newFileName);
             echo json_encode($result);
             exit();
+
+        // ====> AJOUTER CE BLOC <====
+ case 'rename_color_image':
+            $oldFileName = basename(trim($jsonInput['old_file_name'] ?? ''));
+            $newFileName = basename(trim($jsonInput['new_file_name'] ?? ''));
+
+            // S'assurer de conserver l'extension d'origine si l'utilisateur ne l'a pas saisie
+            $oldExt = pathinfo($oldFileName, PATHINFO_EXTENSION);
+            $newExt = pathinfo($newFileName, PATHINFO_EXTENSION);
+            if (empty($newExt) && !empty($oldExt)) {
+                $newFileName .= '.' . $oldExt;
+            }
+
+            // Répertoire dynamique basé sur la racine du projet
+            $basePath = dirname(__DIR__, 4); // Remonte jusqu'à la racine de votre application
+            $colorsDir = $basePath . "/static-resources/products/colors/";
+
+            $oldPath = $colorsDir . $oldFileName;
+            $newPath = $colorsDir . $newFileName;
+
+            if (!empty($oldFileName) && !empty($newFileName) && file_exists($oldPath)) {
+                if (rename($oldPath, $newPath)) {
+                    echo json_encode(['success' => true, 'message' => 'Image de couleur renommée avec succès.']);
+                } else {
+                    echo json_encode(['success' => false, 'message' => 'Échec du renommage du fichier sur le serveur.']);
+                }
+            } else {
+                echo json_encode([
+                    'success' => false, 
+                    'message' => 'Fichier source introuvable ou paramètres invalides.'
+                ]);
+            }
+            exit();
     }
 }
 

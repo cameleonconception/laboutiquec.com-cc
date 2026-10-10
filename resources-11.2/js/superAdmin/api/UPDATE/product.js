@@ -218,8 +218,14 @@ window.addEventListener('productLoaded', function(e) {
         imgInput.onchange = function() { previewSelectedImages(this); };
     }
 
+    const colorImgInput = document.querySelector('#color_imgs');
+    if (colorImgInput) {
+        colorImgInput.onchange = function() { previewSelectedColorImages(this); };
+    }
+
     displayExistingImages(form, productDetails.sku);
     displayExistingTechnicalFile(productDetails.sku);
+    displayExistingColorsThumbnail();
     
     checkContainers();
     const varSearch = document.getElementById('variant-search');
@@ -245,6 +251,279 @@ function showPatchDetails(status) { toggleDisplay('#patchDetailsLabel', status);
 function showScreenPrintDetails(status) { toggleDisplay('#screenPrintDetailsLabel', status); toggleDisplay('#screenPrintDetails', status); }
 
 // --- GESTION DES IMAGES SERVEUR (EXISTANTES) ---
+
+
+/**
+ * Affiche la liste des vignettes de couleurs déjà présentes sur le serveur avec un overlay d'actions au survol.
+ */
+function displayExistingColorsThumbnail() {
+    const colorInput = document.querySelector('#color_imgs');
+    if (!colorInput) return;
+
+    let previewContainer = document.querySelector('#existing-color-images-preview');
+    if (!previewContainer) {
+        previewContainer = document.createElement('div');
+        previewContainer.id = 'existing-color-images-preview';
+        previewContainer.style.cssText = "display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;";
+        colorInput.after(previewContainer);
+    }
+
+    // Récupération de toutes les images de couleur via l'API
+    fetch("../api/superAdmin/GET/getColorImages") // ou ajustez le chemin vers votre handler PHP de getAllColorImages
+        .then(res => res.json())
+        .then(data => {
+            if (!data.success || !data.images) return;
+            previewContainer.innerHTML = '';
+
+            const cacheBuster = new Date().getTime();
+
+            data.images.forEach(imageName => {
+                const cleanPath = `../static-resources/products/colors/${imageName}`;
+                const imgSrcWithCache = `${cleanPath}?v=${cacheBuster}`;
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'existing-image-item';
+                wrapper.setAttribute('data-filename', imageName);
+                wrapper.style.cssText = "position:relative; display:inline-block; width:80px; text-align:center; overflow:hidden; border-radius:4px;";
+
+                wrapper.innerHTML = `
+                    <img src="${imgSrcWithCache}" style="width:80px; height:80px; object-fit:cover; border-radius:4px; border:1px solid #ccc; display:block;" title="${imageName}">
+                    <div class="img-overlay-actions">
+                        <button type="button" title="Renommer" onclick="promptRenameColorImageServer('${imageName}')">
+                            <img class='icons' src='../static-resources/default/icons/white/filter-2.png'>
+                        </button>
+                        <button type="button" title="Dupliquer" onclick="duplicateColorImageServer('${imageName}')">
+                            <img class='icons' src='../static-resources/default/icons/white/copy.png'>
+                        </button>
+                        <button type="button" title="Supprimer" onclick="deleteColorImageServer('${imageName}', this)">
+                            <img class='icons' src='../static-resources/default/icons/white/x.png'>
+                        </button>
+                    </div>
+                    <span style="font-size:9px; word-break:break-all; display:block; margin-top:2px;">${imageName}</span>
+                `;
+
+                previewContainer.appendChild(wrapper);
+            });
+        })
+        .catch(err => console.error("Erreur chargement images couleurs :", err));
+}
+
+/**
+ * Renomme une image de couleur existante sur le serveur
+ */
+function promptRenameColorImageServer(oldFileName) {
+    const lastDotIndex = oldFileName.lastIndexOf('.');
+    const ext = lastDotIndex !== -1 ? oldFileName.substring(lastDotIndex) : '';
+    const oldNameWithoutExt = lastDotIndex !== -1 ? oldFileName.substring(0, lastDotIndex) : oldFileName;
+
+    const userInput = prompt("Entrez le nouveau nom de la couleur (ex: Rouge) :", oldNameWithoutExt);
+
+    if (userInput && userInput.trim() !== "") {
+        let cleanInput = userInput.trim();
+        if (ext && cleanInput.toLowerCase().endsWith(ext.toLowerCase())) {
+            cleanInput = cleanInput.substring(0, cleanInput.length - ext.length);
+        }
+
+        const newFileName = `${cleanInput}${ext}`;
+
+        fetch("../api/superAdmin/UPDATE/product", {
+            method: "POST",
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'rename_color_image',
+                old_file_name: oldFileName,
+                new_file_name: newFileName
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                displayExistingColorsThumbnail();
+            } else {
+                alert("Erreur lors du renommage : " + (data.message || "Erreur serveur"));
+            }
+        })
+        .catch(err => console.error('Erreur réseau :', err));
+    }
+}
+
+/**
+ * Duplique une image de couleur serveur côté client et l'injecte dans l'input #color_imgs
+ */
+async function duplicateColorImageServer(imageName) {
+    const colorInput = document.querySelector('#color_imgs');
+    if (!colorInput) return;
+
+    const lastDotIndex = imageName.lastIndexOf('.');
+    const ext = lastDotIndex !== -1 ? imageName.substring(lastDotIndex) : '';
+    const nameWithoutExt = lastDotIndex !== -1 ? imageName.substring(0, lastDotIndex) : imageName;
+
+    const newFileName = `${nameWithoutExt}-copie${ext}`;
+
+    try {
+        const imagePath = `../static-resources/products/colors/${imageName}`;
+        const response = await fetch(imagePath);
+        if (!response.ok) throw new Error("Impossible de charger l'image source.");
+
+        const blob = await response.blob();
+        const duplicatedFile = new File([blob], newFileName, { type: blob.type || 'image/webp' });
+
+        const dataTransfer = new DataTransfer();
+        if (colorInput.files && colorInput.files.length > 0) {
+            Array.from(colorInput.files).forEach(f => dataTransfer.items.add(f));
+        }
+
+        dataTransfer.items.add(duplicatedFile);
+        colorInput.files = dataTransfer.files;
+
+        previewSelectedColorImages(colorInput);
+
+    } catch (err) {
+        console.error("Erreur lors de la duplication :", err);
+        alert("Impossible de dupliquer l'image de couleur.");
+    }
+}
+/**
+ * Supprime une image de couleur sur le serveur via l'API dédiée
+ */
+function deleteColorImageServer(fileName, btnElement) {
+    if (confirm(`Voulez-vous vraiment supprimer l'image de couleur "${fileName}" ?`)) {
+        fetch("../api/superAdmin/POST/deleteColorImage", {
+            method: "POST",
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                file_name: fileName
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                if (btnElement && btnElement.closest('.existing-image-item')) {
+                    btnElement.closest('.existing-image-item').remove();
+                }
+            } else {
+                alert("Erreur : " + (data.message || "Impossible de supprimer l'image."));
+            }
+        })
+        .catch(err => console.error('Erreur réseau :', err));
+    }
+}
+
+/**
+ * Aperçu instantané lors de la sélection de nouveaux fichiers de couleur
+ */
+function previewSelectedColorImages(input) {
+    let previewContainer = document.querySelector('#new-color-images-preview');
+    if (!previewContainer) {
+        previewContainer = document.createElement('div');
+        previewContainer.id = 'new-color-images-preview';
+        previewContainer.style.cssText = "display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;";
+        input.after(previewContainer);
+    }
+
+    previewContainer.innerHTML = '';
+
+    if (input.files && input.files.length > 0) {
+        Array.from(input.files).forEach((file, index) => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'existing-image-item new-image-item';
+                wrapper.style.cssText = "position:relative; display:inline-block; width:80px; text-align:center; overflow:hidden; border-radius:4px;";
+
+                wrapper.innerHTML = `
+                    <img src="${e.target.result}" style="width:80px; height:80px; object-fit:cover; border-radius:4px; border:2px solid #4CAF50; display:block;" title="${file.name}">
+                    <div class="img-overlay-actions">
+                        <button type="button" title="Renommer" onclick="promptRenameNewColorImage(${index})">
+                            <img class='icons' src='../static-resources/default/icons/white/filter-2.png'>
+                        </button>
+                        <button type="button" title="Dupliquer" onclick="duplicateNewColorImage(${index})">
+                            <img class='icons' src='../static-resources/default/icons/white/copy.png'>
+                        </button>
+                        <button type="button" title="Supprimer" onclick="removeNewColorImage(${index})">
+                            <img class='icons' src='../static-resources/default/icons/white/x.png'>
+                        </button>
+                    </div>
+                    <span style="font-size:9px; word-break:break-all; display:block; margin-top:2px;">${file.name}</span>
+                `;
+                previewContainer.appendChild(wrapper);
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+}
+
+function promptRenameNewColorImage(index) {
+    const colorInput = document.querySelector('#color_imgs');
+    if (!colorInput || !colorInput.files[index]) return;
+
+    const file = colorInput.files[index];
+    const lastDotIndex = file.name.lastIndexOf('.');
+    const ext = lastDotIndex !== -1 ? file.name.substring(lastDotIndex) : '';
+    const nameWithoutExt = lastDotIndex !== -1 ? file.name.substring(0, lastDotIndex) : file.name;
+
+    const userInput = prompt("Entrez le nouveau nom pour cette couleur :", nameWithoutExt);
+    if (userInput && userInput.trim() !== "") {
+        let cleanInput = userInput.trim();
+        if (ext && cleanInput.toLowerCase().endsWith(ext.toLowerCase())) {
+            cleanInput = cleanInput.substring(0, cleanInput.length - ext.length);
+        }
+
+        const newFileName = `${cleanInput}${ext}`;
+        const renamedFile = new File([file], newFileName, { type: file.type });
+
+        const dataTransfer = new DataTransfer();
+        Array.from(colorInput.files).forEach((f, i) => {
+            if (i === index) {
+                dataTransfer.items.add(renamedFile);
+            } else {
+                dataTransfer.items.add(f);
+            }
+        });
+
+        colorInput.files = dataTransfer.files;
+        previewSelectedColorImages(colorInput);
+    }
+}
+
+function duplicateNewColorImage(index) {
+    const colorInput = document.querySelector('#color_imgs');
+    if (!colorInput || !colorInput.files[index]) return;
+
+    const file = colorInput.files[index];
+    const lastDotIndex = file.name.lastIndexOf('.');
+    const ext = lastDotIndex !== -1 ? file.name.substring(lastDotIndex) : '';
+    const nameWithoutExt = lastDotIndex !== -1 ? file.name.substring(0, lastDotIndex) : file.name;
+
+    const newFileName = `${nameWithoutExt}-copie${ext}`;
+    const duplicatedFile = new File([file], newFileName, { type: file.type });
+
+    const dataTransfer = new DataTransfer();
+    Array.from(colorInput.files).forEach((f, i) => {
+        dataTransfer.items.add(f);
+        if (i === index) {
+            dataTransfer.items.add(duplicatedFile);
+        }
+    });
+
+    colorInput.files = dataTransfer.files;
+    previewSelectedColorImages(colorInput);
+}
+
+function removeNewColorImage(index) {
+    const colorInput = document.querySelector('#color_imgs');
+    if (!colorInput) return;
+
+    const dataTransfer = new DataTransfer();
+    Array.from(colorInput.files).forEach((f, i) => {
+        if (i !== index) {
+            dataTransfer.items.add(f);
+        }
+    });
+
+    colorInput.files = dataTransfer.files;
+    previewSelectedColorImages(colorInput);
+}
 
 /**
  * Affiche la liste des images déjà présentes sur le serveur avec overlay d'actions au survol.
@@ -341,6 +620,11 @@ async function duplicateServerImage(imageName) {
  * Renomme une image serveur via l'API
  */
 function promptRenameServerImage(oldFileName) {
+    if (typeof product === 'undefined' || !product || !product.id) {
+        alert("ID du produit introuvable.");
+        return;
+    }
+
     const lastDotIndex = oldFileName.lastIndexOf('.');
     const ext = lastDotIndex !== -1 ? oldFileName.substring(lastDotIndex) : '';
     const oldNameWithoutExt = lastDotIndex !== -1 ? oldFileName.substring(0, lastDotIndex) : oldFileName;
@@ -359,15 +643,16 @@ function promptRenameServerImage(oldFileName) {
 
         saveCurrentSelections();
         
+        const formData = new FormData();
+        formData.append('id', product.id);
+        formData.append('sku', product.sku);
+        formData.append('action', 'rename_image');
+        formData.append('old_file_name', oldFileName);
+        formData.append('new_file_name', formattedNewFileName);
+
         fetch("../api/superAdmin/UPDATE/product", {
             method: "POST",
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action: 'rename_image',
-                product_id: product.id,
-                old_file_name: oldFileName,
-                new_file_name: formattedNewFileName
-            })
+            body: formData
         })
         .then(res => res.json())
         .then(data => {
