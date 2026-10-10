@@ -9,8 +9,8 @@
         <a class='<?php if($activePage === 'Produits'){ echo 'active';}; ?>' href="<?php echo $underLevelString; ?>produits">Produits </a>
         <a class='<?php if($activePage === 'Artiste'){ echo 'active';}; ?>' href="<?php echo $underLevelString; ?>artistes" style="display:none;">Artistes</a>
         <a class='<?php if($activePage === 'Articles promotionnels'){ echo 'active';}; ?>' style="display:none;"href="<?php echo $underLevelString; ?>produits?categories=Article promotionnel">Articles promotionnels</a>
-        <a class='<?php if($activePage === 'Catalogues'){ echo 'active';}; ?>' href="<?php echo $underLevelString; ?>catalogues">Catalogues</a>
-        <a class='<?php if($activePage === 'Outils'){ echo 'active';}; ?>' href="<?php echo $underLevelString; ?>outils">Outils</a>
+        <a style="display:none;" class='<?php if($activePage === 'Catalogues'){ echo 'active';}; ?>' href="<?php echo $underLevelString; ?>catalogues">Catalogues</a>
+        <a style="display:none;" class='<?php if($activePage === 'Outils'){ echo 'active';}; ?>' href="<?php echo $underLevelString; ?>outils">Outils</a>
         <a href="https://www.cameleonconception.com/faq">FAQ</a>
         <a href="https://www.cameleonconception.com/contact">Nous joindre</a>
         <?php
