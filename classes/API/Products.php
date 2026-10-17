@@ -490,6 +490,8 @@ public function getProducts($page, $query, $categories, $colors) {
     $allSizes = $pdo->query("SELECT DISTINCT S_size.id, S_size.name FROM sizes S_size JOIN product_size_color_price pscp ON S_size.id = pscp.size_id JOIN products P ON pscp.product_id = P.id WHERE $baseWhereRole ORDER BY S_size.name ASC")->fetchAll(PDO::FETCH_ASSOC);
     $allSuppliers = $pdo->query("SELECT id, name, shippingCost, freeShippingAt FROM suppliers ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
 
+
+
     echo json_encode([
         'success'           => true,
         'totalProducts'     => (int)$totalProducts,
@@ -502,6 +504,58 @@ public function getProducts($page, $query, $categories, $colors) {
         'appliedColors'     => array_values($allColorsToSearch)
     ]);
     exit();
+}
+
+public function getSageProducts($page, $query, $categories, $colors)
+{
+    $url = "https://www.promoplace.com/ws/ws.dll/ConnectAPI";
+
+    $data = [
+        "serviceId" => 103,
+        "apiVer" => 130,
+        "auth" => [
+            "acctId"  => getenv('SAGE_ACCT_ID')  ?: ($_ENV['SAGE_ACCT_ID']  ?? ''),
+            "loginId" => getenv('SAGE_LOGIN_ID') ?: ($_ENV['SAGE_LOGIN_ID'] ?? ''),
+            "key"     => getenv('SAGE_AUTH_KEY')  ?: ($_ENV['SAGE_AUTH_KEY']  ?? '')
+        ],
+        "search" => [
+            "quickSearch" => $query
+        ]
+    ];
+
+    $jsonData = json_encode($data);
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonData);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json',
+        'Content-Length: ' . strlen($jsonData)
+    ]);
+
+    $response = curl_exec($ch);
+    $error    = curl_error($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+    unset($ch);
+
+    if ($error) {
+        http_response_code(500);
+        echo json_encode(["error" => "Erreur cURL : " . $error]);
+        exit;
+    }
+
+    if ($httpCode !== 200) {
+        http_response_code($httpCode);
+        echo json_encode(["error" => "Erreur API Sage (HTTP $httpCode)", "details" => $response]);
+        exit;
+    }
+
+    // $response est DEJA du JSON renvoyé par Sage
+    header('Content-Type: application/json');
+    echo $response; 
+    exit;
 }
 
 public function generateGoogleMerchantXML() {

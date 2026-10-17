@@ -362,6 +362,95 @@ if (data.suppliers && supplierSelect) {
             }
         })
         .catch(error => console.error('Erreur lors du chargement des produits:', error));
+
+fetch('./api/GET/sageProducts?page=' + activePage +'&query='+query+'&categories='+categoriesRaw+'&colors='+colorsRaw)
+        .then(response => response.json())
+        .then(data => {
+            if (data && data.ok && Array.isArray(data.products)) {
+                let sageProductsArray = data.products;
+
+                if (sageProductsArray.length === 0) {
+                    productContainer.innerHTML = `<div class='cartMessage'><p>Nous n'avons trouvé aucun produit SAGE</p>
+                    <div class="actionContainer" style="display:none;">
+                        <a href="catalogues" class="btn-primary">Voir tous nos produits (catalogues)</a>
+                        <a href="https://cameleonconception.com/contact" class="btn-secondary">Nous joindre</a>
+                    </div>    
+                    </div>`;
+                    return;
+                }
+
+                productContainer.innerHTML = '';
+
+                sageProductsArray.forEach(product => {
+                    const baseSku = product.spc || product.prodEId;
+                    const productName = product.name || '';
+                    const initialImageSrc = product.thumbPic || './static-resources/default/products/introuvable.webp';
+                    
+                    // Stockage pour la gestion des images en mémoire si nécessaire
+                    window.lastLoadedProductsImgNames[baseSku] = product.thumbPic ? [product.thumbPic] : [];
+
+                    // Calcul du prix à partir de la plage `prc`
+                    let formattedPrice = '';
+                    if (product.prc) {
+                        const prices = product.prc.split('-').map(p => parseFloat(p.trim())).filter(p => !isNaN(p));
+                        if (prices.length > 0) {
+                            const lowest = (prices[0] / 1.6) * 1.3;
+                            formattedPrice = lowest.toFixed(2).replace('.', ',');
+                        }
+                    }
+
+                    const cardRedirectUrl = `./produits/details?pid=${product.prodEId}&supplier=SAGE`;
+
+                    const card = document.createElement('div');
+                    card.className = `product-card`;
+                    card.onclick = () => window.location.href = cardRedirectUrl;
+
+                    card.innerHTML = `
+                        <div class="thumbnail-wrapper" data-sku="${baseSku}" data-real-sku="${baseSku}" data-prefix="thumbnail"> 
+                            <div class="thumbnail-skeleton"></div> 
+                            <img id="img-${baseSku}" 
+                                class="product-image"
+                                src="${initialImageSrc}" 
+                                alt="Image du produit ${escapeHTML(productName)}"
+                                data-current-thumb="1"
+                                loading="lazy" 
+                                onload="this.classList.add('loaded'); if(this.previousElementSibling) this.previousElementSibling.style.display='none';" 
+                                onerror="this.src='./static-resources/default/products/introuvable.webp'; this.classList.add('loaded'); if(this.previousElementSibling) this.previousElementSibling.style.display='none';">
+                            
+                            <div class='thumb-nav-container' style="display:none;">
+                                <button class="thumb-nav thumb-prev disabled" onclick="switchThumbnailOnDemand('${baseSku}', -1); event.stopPropagation();">&lt;</button>
+                                <button class="thumb-nav thumb-next disabled" onclick="switchThumbnailOnDemand('${baseSku}', 1); event.stopPropagation();">&gt;</button>
+                            </div>
+                        </div>
+                        <div class="product-info-wrapper"></div>
+                        <div class="color-thumbnails-wrapper"></div>
+                    `;
+
+                    productContainer.appendChild(card);
+
+                    // Injection des informations textuelles
+                    setTimeout(() => {
+                        const infoWrapper = card.querySelector('.product-info-wrapper');
+                        if (infoWrapper) {
+                            infoWrapper.innerHTML = `
+                                <div class="product-info">
+                                    <h3>${escapeHTML(productName)} - ${baseSku}</h3>
+                                    <p>SAGE</p>
+                                    <p style="display:none;">À partir de : ${formattedPrice} $</p>
+                                </div>
+                            `;
+                        }
+                    }, 50);
+                });
+
+                // Enclenchement de la pagination globale SAGE
+                if (data.totalFound !== undefined) {
+                    generatePagination(data.totalFound, activePage);
+                    initInfiniteScroll(activePage, data.totalFound);
+                }
+            }
+        })
+        .catch(error => console.error('Erreur lors du chargement des produits sage:', error));
 });
 
 function filterList(input, containerId) {
@@ -859,18 +948,18 @@ function initInfiniteScroll(currentPage, totalProducts) {
                 let colorThumbnailBloc = '';
                 if (product.availableColors) {
                  product.availableColors.forEach(color => {
-    let isCurrentClass = (color === currentColor) ? 'active-color-thumb' : '';
-    let safeColor = escapeHTML(color);
-    let encodedColor = encodeURIComponent(color);
+                let isCurrentClass = (color === currentColor) ? 'active-color-thumb' : '';
+                let safeColor = escapeHTML(color);
+                let encodedColor = encodeURIComponent(color);
 
-    colorThumbnailBloc += `<img title="${safeColor}"
-        class="color-thumbnail-image ${isCurrentClass}"
-        src="static-resources/products/colors/${encodedColor}.webp" 
-        alt="Image de la couleur ${safeColor}"
-        loading="lazy" 
-        onclick="window.location.href='./produits/${view}?pid=${product.id}&selectedColor=${encodedColor}'; event.stopPropagation();"
-    >`;
-});
+                colorThumbnailBloc += `<img title="${safeColor}"
+                    class="color-thumbnail-image ${isCurrentClass}"
+                    src="static-resources/products/colors/${encodedColor}.webp" 
+                    alt="Image de la couleur ${safeColor}"
+                    loading="lazy" 
+                    onclick="window.location.href='./produits/${view}?pid=${product.id}&selectedColor=${encodedColor}'; event.stopPropagation();"
+                >`;
+            });
                 }
                 card.querySelector('.color-thumbnails-wrapper').innerHTML = colorThumbnailBloc;
               }, 150);
