@@ -62,6 +62,8 @@ document.addEventListener('DOMContentLoaded', function() {
     let categories = categoriesRaw ? categoriesRaw.split(",") : [];
     let colors = colorsRaw ? colorsRaw.split(",") : [];
 
+    let totalLoadedProducts = 0; // Compteur global de produits affichés
+
     // --- 1. CHARGEMENT DE VOS PRODUITS (PRIORITAIRES) ---
     fetch('./api/GET/products?page=' + activePage +'&query='+query+'&categories='+categoriesRaw+'&colors='+colorsRaw)
         .then(response => response.json())
@@ -203,6 +205,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     let colorsToRender = matchingColors.length > 0 ? matchingColors : [null];
 
                     colorsToRender.forEach((currentColor) => {
+                        totalLoadedProducts++; // Incrémente le compteur
+
                         const uniqueCardId = currentColor ? `${baseSku}-${currentColor.replace(/\s+/g, '_')}` : baseSku;
                         const targetPrefix = currentColor ? currentColor.trim() : 'thumbnail';
                         const foundImageName = getProductImageUrl(product.imgNames, targetPrefix, 1);
@@ -292,6 +296,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     generatePagination(data.totalProducts, activePage);
                     initInfiniteScroll(activePage, data.totalProducts);
                 }
+            } else {
+                productContainer.innerHTML = '';
             }
 
             // --- 2. APRES VOS PRODUITS, ON FETCH ET AJOUTE LES PRODUITS SAGE ---
@@ -303,13 +309,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 let sageProductsArray = data.products;
 
                 sageProductsArray.forEach(product => {
+                    totalLoadedProducts++; // Incrémente le compteur
+
                     const baseSku = product.spc || product.prodEId;
                     const productName = product.name || '';
                     let initialImageSrc = product.thumbPic || './static-resources/default/products/introuvable.webp';
                     
                     if (product.thumbPic) {
-                    initialImageSrc = product.thumbPic
-                        .replace('RS=150', 'RS=300')
+                        initialImageSrc = product.thumbPic.replace('RS=150', 'RS=300');
                     }
 
                     window.lastLoadedProductsImgNames[baseSku] = product.thumbPic ? [product.thumbPic] : [];
@@ -366,8 +373,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     }, 50);
                 });
             }
+
+            // Vérification finale si aucun produit n'a été trouvé
+            if (totalLoadedProducts === 0) {
+                showNoProductsMessage(productContainer);
+            }
         })
-        .catch(error => console.error('Erreur lors du chargement des produits:', error));
+        .catch(error => {
+            console.error('Erreur lors du chargement des produits:', error);
+            if (totalLoadedProducts === 0) {
+                showNoProductsMessage(productContainer);
+            }
+        });
 });
 
 function filterList(input, containerId) {
@@ -809,4 +826,14 @@ function initInfiniteScroll(currentPage, totalProducts) {
 
     observerNext.observe(sentinelNext);
   }
+}
+
+function showNoProductsMessage(container) {
+    if (!container) return;
+    container.innerHTML = `
+        <div class="no-products-found" style="grid-column: 1 / -1; text-align: center; padding: 50px 20px;">
+            <p>Aucun produit trouvé</p>
+            <a href="./produits" class="btn-primary" style="display: inline-block; margin-top: 15px;  margin-top:10px; padding: 8px 16px; background-color: var(--accent-color); color: white; text-decoration: none; border-radius: 6px;">Réinitialiser la recherche</a>
+        </div>
+    `;
 }

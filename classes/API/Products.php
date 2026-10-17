@@ -506,6 +506,7 @@ public function getProducts($page, $query, $categories, $colors) {
     exit();
 }
 
+/*
 public function getSageProducts($page, $query, $categories, $colors)
 {
     $url = "https://www.promoplace.com/ws/ws.dll/ConnectAPI";
@@ -519,7 +520,10 @@ public function getSageProducts($page, $query, $categories, $colors)
             "key"     => getenv('SAGE_AUTH_KEY')  ?: ($_ENV['SAGE_AUTH_KEY']  ?? '')
         ],
         "search" => [
-            "quickSearch" => $query
+            "quickSearch" => $query,
+            "verified" => 1,
+            "popular" => 1,
+
         ]
     ];
 
@@ -557,7 +561,7 @@ public function getSageProducts($page, $query, $categories, $colors)
     echo $response; 
     exit;
 }
-
+*/
 public function generateGoogleMerchantXML() {
     @ini_set('memory_limit', '512M');
     @set_time_limit(300);
