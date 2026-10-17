@@ -274,7 +274,11 @@ function displayExistingImages(form, sku) {
         wrapper.style.cssText = "position:relative; display:inline-block; width:80px; text-align:center; overflow:hidden; border-radius:4px;";
 
         wrapper.innerHTML = `
-            <img src="${imgSrcWithCache}" style="width:80px; height:80px; object-fit:cover; border-radius:4px; border:1px solid #ccc; display:block;" title="${imageName}">
+            <img src="${imgSrcWithCache}" 
+                loading="lazy" 
+                decoding="async" 
+                style="width:80px; height:80px; object-fit:cover; border-radius:4px; border:1px solid #ccc; display:block;" 
+                title="${imageName}">
             <div class="img-overlay-actions">
                 <button type="button" title="Renommer" onclick="promptRenameServerImage('${imageName}')">
                     <img class='icons' src='../static-resources/default/icons/white/filter-2.png'>
