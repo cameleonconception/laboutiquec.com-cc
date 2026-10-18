@@ -506,9 +506,11 @@ public function getProducts($page, $query, $categories, $colors) {
     exit();
 }
 
-/*
+
 public function getSageProducts($page, $query, $categories, $colors)
 {
+    $open = true;
+    if($open){
     $url = "https://www.promoplace.com/ws/ws.dll/ConnectAPI";
 
     $data = [
@@ -560,8 +562,9 @@ public function getSageProducts($page, $query, $categories, $colors)
     header('Content-Type: application/json');
     echo $response; 
     exit;
+    }
 }
-*/
+
 public function generateGoogleMerchantXML() {
     @ini_set('memory_limit', '512M');
     @set_time_limit(300);

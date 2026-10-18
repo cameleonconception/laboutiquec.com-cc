@@ -338,6 +338,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     card.innerHTML = `
                         <div class="thumbnail-wrapper" data-sku="${baseSku}" data-real-sku="${baseSku}" data-prefix="thumbnail"> 
+                            <span>Directement de l'usine</span>
                             <div class="thumbnail-skeleton"></div> 
                             <img id="img-${baseSku}" 
                                 class="product-image"
