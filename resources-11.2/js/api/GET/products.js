@@ -226,6 +226,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                         card.innerHTML = `
                             <div class="thumbnail-wrapper" data-sku="${uniqueCardId}" data-real-sku="${baseSku}" data-prefix="${targetPrefix}"> 
+                                <span class="product-tag-usine">Directement de l'usine</span>
                                 <div class="thumbnail-skeleton"></div> 
                                 <img id="img-${uniqueCardId}" 
                                     class="product-image"
@@ -338,7 +339,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     card.innerHTML = `
                         <div class="thumbnail-wrapper" data-sku="${baseSku}" data-real-sku="${baseSku}" data-prefix="thumbnail"> 
-                            <span>Directement de l'usine</span>
+                            <span class="product-tag-usine">Directement de l'usine</span>
                             <div class="thumbnail-skeleton"></div> 
                             <img id="img-${baseSku}" 
                                 class="product-image"
@@ -755,6 +756,7 @@ function initInfiniteScroll(currentPage, totalProducts) {
 
               card.innerHTML = `
                 <div class="thumbnail-wrapper" data-sku="${uniqueCardId}" data-real-sku="${baseSku}" data-prefix="${targetPrefix}">
+                  <span class="product-tag-usine">Directement de l'usine</span>
                   <div class="thumbnail-skeleton"></div>
                   <img id="img-${uniqueCardId}"
                     class="product-image"
