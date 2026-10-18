@@ -252,8 +252,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             if (infoWrapper) {
                                 infoWrapper.innerHTML = `
                                     <div class="product-info">
-                                        <h3>${product.name} - ${baseSku}</h3>
-                                        <p>${product.supplier ? product.supplier.name : ''}</p>
+                                        <h3>${product.name}</h3>
+                                        <p>${product.supplier ? product.supplier.name : ''} - ${baseSku}</p>
                                         <p style="display:none;">À partir de : ${formattedPrice} $</p>
                                     </div>
                                 `;
@@ -780,8 +780,8 @@ function initInfiniteScroll(currentPage, totalProducts) {
                 if (infoWrapper) {
                   infoWrapper.innerHTML = `
                     <div class="product-info">
-                      <h3>${product.name} - ${baseSku}</h3>
-                      <p>${supplierName}</p>
+                      <h3>${product.name}</h3>
+                      <p>${supplierName} - ${baseSku}</p>
                       <p style="display:none;">À partir de : ${formattedPrice} $</p>
                     </div>
                   `;
