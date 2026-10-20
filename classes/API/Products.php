@@ -7,6 +7,10 @@ ini_set('error_log', __DIR__ . '/logs/php_errors.log');
 require_once('classes/Database/Connection.php');
 require_once('classes/API/Profile.php');
 
+
+require ('vendor/autoload.php');
+use Stichoza\GoogleTranslate\GoogleTranslate;
+
 class Products
 {
     // ---------------------------------------------------------
@@ -507,14 +511,95 @@ public function getProducts($page, $query, $categories, $colors) {
 }
 
 
-public function getSageProducts($page, $query, $categories, $colors)
+
+private function translateToEnglish(string $text): string
 {
+    if (empty(trim($text))) {
+        return $text;
+    }
+
+    try {
+        // 'en' définit la langue de destination (Anglais)
+        // La langue source est détectée automatiquement
+        $tr = new GoogleTranslate('en');
+        return $tr->translate($text);
+    } catch (\Exception $e) {
+        // En cas de coupure réseau ou problème, on conserve le texte original
+        error_log("Erreur de traduction : " . $e->getMessage());
+        return $text;
+    }
+}
+
+public function getSageProducts($page, $query)
+{
+    // Traduction automatique en anglais
+    $translatedQuery = $this->translateToEnglish($query ?? '');
+
     $open = true;
+    if ($open) {
+        $url = "https://www.promoplace.com/ws/ws.dll/ConnectAPI";
+
+        $data = [
+            "serviceId" => 103,
+            "apiVer" => 130,
+            "auth" => [
+                "acctId"  => getenv('SAGE_ACCT_ID')  ?: ($_ENV['SAGE_ACCT_ID']  ?? ''),
+                "loginId" => getenv('SAGE_LOGIN_ID') ?: ($_ENV['SAGE_LOGIN_ID'] ?? ''),
+                "key"     => getenv('SAGE_AUTH_KEY')  ?: ($_ENV['SAGE_AUTH_KEY']  ?? '')
+            ],
+            "search" => [
+                "quickSearch" => $translatedQuery,
+                "siteCountry" => "CA",
+                "verified" => 1,
+                "popular" => 1,
+            ]
+        ];
+
+        $jsonData = json_encode($data);
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonData);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Content-Length: ' . strlen($jsonData)
+        ]);
+
+        $response = curl_exec($ch);
+        $error    = curl_error($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+        unset($ch);
+
+        if ($error) {
+            http_response_code(500);
+            echo json_encode(["error" => "Erreur cURL : " . $error]);
+            exit;
+        }
+
+        if ($httpCode !== 200) {
+            http_response_code($httpCode);
+            echo json_encode(["error" => "Erreur API Sage (HTTP $httpCode)", "details" => $response]);
+            exit;
+        }
+
+        header('Content-Type: application/json');
+        echo $response; 
+        exit;
+    }
+}
+
+public function getSageProductDetails($eid)
+{
+    
+    $open = true;
+
     if($open){
     $url = "https://www.promoplace.com/ws/ws.dll/ConnectAPI";
 
     $data = [
-        "serviceId" => 103,
+        "serviceId" => 104,
         "apiVer" => 130,
         "auth" => [
             "acctId"  => getenv('SAGE_ACCT_ID')  ?: ($_ENV['SAGE_ACCT_ID']  ?? ''),
@@ -522,11 +607,8 @@ public function getSageProducts($page, $query, $categories, $colors)
             "key"     => getenv('SAGE_AUTH_KEY')  ?: ($_ENV['SAGE_AUTH_KEY']  ?? '')
         ],
         "search" => [
-            "quickSearch" => $query,
-            "verified" => 1,
-            "popular" => 1,
-
-        ]
+            "prodEId" => $eid
+            ]
     ];
 
     $jsonData = json_encode($data);
@@ -563,6 +645,7 @@ public function getSageProducts($page, $query, $categories, $colors)
     echo $response; 
     exit;
     }
+    
 }
 
 public function generateGoogleMerchantXML() {
