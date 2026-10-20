@@ -254,7 +254,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 infoWrapper.innerHTML = `
                                     <div class="product-info">
                                         <h3>${product.name}</h3>
-                                        <p>${product.supplier ? product.supplier.name : ''} - ${baseSku}</p>
+                                        <p>${baseSku}</p>
                                         <p style="display:none;">À partir de : ${formattedPrice} $</p>
                                     </div>
                                 `;
@@ -331,7 +331,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     }
 
-                    const cardRedirectUrl = `./produits/details?pid=${product.prodEId}&supplier=SAGE`;
+                    const cardRedirectUrl = `./produits/details?eid=${product.prodEId}`;
 
                     const card = document.createElement('div');
                     card.className = `product-card`;
@@ -366,8 +366,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (infoWrapper) {
                             infoWrapper.innerHTML = `
                                 <div class="product-info">
-                                    <h3>${escapeHTML(productName)} - ${baseSku}</h3>
-                                    <p>SAGE</p>
+                                    <h3>${escapeHTML(productName)}</h3>
+                                    <p>${baseSku}</p>
                                     <p style="display:none;">À partir de : ${formattedPrice} $</p>
                                 </div>
                             `;
@@ -784,7 +784,7 @@ function initInfiniteScroll(currentPage, totalProducts) {
                   infoWrapper.innerHTML = `
                     <div class="product-info">
                       <h3>${product.name}</h3>
-                      <p>${supplierName} - ${baseSku}</p>
+                      <p>${baseSku}</p>
                       <p style="display:none;">À partir de : ${formattedPrice} $</p>
                     </div>
                   `;

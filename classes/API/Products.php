@@ -549,7 +549,7 @@ public function getSageProducts($page, $query)
             ],
             "search" => [
                 "quickSearch" => $translatedQuery,
-                "siteCountry" => "CA",
+                //"siteCountry" => "CA",
                 "verified" => 1,
                 "popular" => 1,
             ]
