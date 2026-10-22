@@ -702,7 +702,6 @@ function generateStudioHTML(product, designData = null) {
     if (!designData || !designData.views) return '';
 
     // 2. Détermination du mode de personnalisation sélectionné
-    // On vérifie les différents endroits où cette valeur peut se trouver
     const selectedOption = product.selectedPersonalizationOption 
         || (product.studioData && product.studioData.selectedPersonalizationOption)
         || (designData && designData.selectedPersonalizationOption);
@@ -714,11 +713,9 @@ function generateStudioHTML(product, designData = null) {
         
         // Génération de la liste HTML pour chaque logo présent sur cette vue
         const logosHtml = view.logos.map((l, logoIndex) => {
-            // Chemin absolu ou relatif vers l'image source enregistrée
             const logoPath = `static-resources/temp-designs/${product.designSignature}/logo_v${index + 1}_n${logoIndex + 1}.png`;
             
             if (isCustomMode) {
-                // Mode Personnalisé : On affiche uniquement le lien de téléchargement source (sans dimensions)
                 return `
                     <li>
                         <span>Logo #${logoIndex + 1} ....</span> 
@@ -727,12 +724,11 @@ function generateStudioHTML(product, designData = null) {
                         </a>
                     </li>`; 
             } else {
-                // Autres modes (DTF, UV DTF, Broderie...) : On affiche les dimensions + le lien source
                 const dimW = l.width || '0';
                 const dimH = l.height || '0';
                 return `
                     <li>
-                        </span> ${dimW}" x ${dimH}" ....</span>  
+                        <span>${dimW}" x ${dimH}" ....</span>  
                         <a href="${logoPath}" target="_blank" title="Voir l'image source originale">
                             (source)
                         </a>
@@ -741,13 +737,17 @@ function generateStudioHTML(product, designData = null) {
 
         }).join('');
         
+        // LOGIQUE D'AFFICHAGE DE L'IMAGE :
+        // Priorité à product.imgUrl, sinon fallback sur view.previewUrl
+        const imageToDisplay = product.imgUrl ? product.imgUrl : view.previewUrl;
+        
         return `
             <div class="cart-studio-row" style="display: flex; gap: 15px; margin-bottom: 15px; align-items: center;">
                 <div class="cart-preview-item">
-                    <img src="${view.previewUrl}" 
-                        alt="Aperçu Vue ${index + 1}" 
+                    <img src="${imageToDisplay}" 
+                        alt="Image Produit Vue ${index + 1}" 
                         style="width: 100px; height: auto; border-radius: 4px; cursor: pointer; border: 1px solid #ddd;"
-                        onclick="openPreviewModal('${view.previewUrl}')">
+                        onclick="openPreviewModal('${imageToDisplay}')">
                 </div>
                 <div class="cart-logos-info-pale">
                     <p style="font-weight: bold; margin-bottom: 5px;">Vue ${index + 1}</p>

@@ -100,6 +100,9 @@ async function addProductToCart(details) {
     let sku = productCard.getAttribute("data-psku");
     let name = productCard.getAttribute("data-pname");
     
+    let mainImgEl = document.querySelector(".slideshowContainer img[style*='display: block']") || document.querySelector(".slideshowContainer img");
+    let productImageSrc = mainImgEl ? mainImgEl.src : "";
+
     let colorSelect = productCard.querySelector(".product-colors");
     let color = colorSelect ? colorSelect.value : "";
     let sizeElements = productCard.querySelectorAll(".variantDiv");
@@ -318,12 +321,19 @@ async function addProductToCart(details) {
             else { existingGroup.sizes.push(newItem); }
         });
         existingGroup.availableSizes = availableSizes;
+        
+        // Inclure imgUrl uniquement si details est vrai
+        if (details) {
+            existingGroup.imgUrl = productImageSrc;
+        }
+
         if (existingGroup.studioData) {
             existingGroup.studioData.selectedPersonalizationOption = selectedStudioOption;
             existingGroup.studioData.views = studioDataSummary ? studioDataSummary.views : null;
         }
     } else {
-        cart.push({
+        // Construction de l'objet produit de base
+        const newCartItem = {
             id: id, sku: sku, name: name, color: color,
             supplierId: supplierData.id,
             supplier: supplierData,
@@ -333,7 +343,14 @@ async function addProductToCart(details) {
             studioData: studioDataSummary,
             sizes: newItemsToAdd,
             availableSizes: availableSizes 
-        });
+        };
+
+        // Ajouter imgUrl UNIQUEMENT si details est vrai (Sage/Détails)
+        if (details) {
+            newCartItem.imgUrl = productImageSrc;
+        }
+
+        cart.push(newCartItem);
     }
 
     // --- 5. FINALISATION ---
