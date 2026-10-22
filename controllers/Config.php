@@ -10,7 +10,7 @@ require_once('classes/Config/Config.php');
 
 try {
     Config::initialize([
-        'appVersion' => '11.2',
+        'appVersion' => '12.0',
         'appStatus' => 'OPEN',
         'appDatabase' => 'TRUE',
         'appDatabaseConfig' => [ 
