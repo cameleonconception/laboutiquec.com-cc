@@ -201,7 +201,7 @@ async function addProductToCart(details) {
         }
 
         const customSizeData = {
-            size: "Quantité tot.",
+            size: "Unité(s)",
             variantId: 0,
             stock: 999,
             rawPrice: 0

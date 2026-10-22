@@ -63,31 +63,28 @@ if (packingBtn) {
 
         if (items && Array.isArray(items)) {
             items.forEach(item => {
-            let thumbPath = (item.designSignature && item.designSignature !== 'null') 
-                    ? `${baseUrl}static-resources/temp-designs/${item.designSignature}/preview_v1.png`
-                    : '';
-
-            if(order.status === 0){
-                thumbPath = (item.designSignature && item.designSignature !== 'null') 
-                    ? `${baseUrl}static-resources/temp-designs/${item.designSignature}/preview_v1.png`
-                    : '';
-            }
+                // Priorité à item.imgUrl s'il existe (mode details/Sage), sinon fallback sur l'image studio preview_v1.png
+                let thumbPath = item.imgUrl 
+                    ? item.imgUrl 
+                    : ((item.designSignature && item.designSignature !== 'null') 
+                        ? `${baseUrl}static-resources/temp-designs/${item.designSignature}/preview_v1.png`
+                        : '');
 
                 // Logique de personnalisation stricte
-            let persoDisplay = '';
-            if (item.studioData && item.studioData.selectedPersonalizationOption) {
-                const opt = item.studioData.selectedPersonalizationOption;
-                if (opt !== 'Aucune' && opt !== 'Aucune personnalisation') {
-                    persoDisplay = `<br><small style="color:#e67e22;">Personnalisation : ${opt} ${item.studioData.orderDtfIn}</small>`;
+                let persoDisplay = '';
+                if (item.studioData && item.studioData.selectedPersonalizationOption) {
+                    const opt = item.studioData.selectedPersonalizationOption;
+                    if (opt !== 'Aucune' && opt !== 'Aucune personnalisation') {
+                        const dtfText = item.studioData.orderDtfIn ? ` ${item.studioData.orderDtfIn}` : '';
+                        persoDisplay = `<br><small style="color:#e67e22;">Personnalisation : ${opt}${dtfText}</small>`;
+                    }
                 }
-            }
 
                 item.sizes.forEach(s => {
                     const productUrl = `${baseUrl}produits/details?pid=${item.id}&selectedColor=${encodeURIComponent(item.color)}`;
                     const miniQR = `https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(productUrl)}`;
 
                     let isPersonnalized = item.studioData != null ? " (personnalisé)" : '';
-
 
                     rowsHtml += `
                         <tr>
@@ -96,9 +93,9 @@ if (packingBtn) {
                             <td>
                                 <div style="display: flex; justify-content: space-between; align-items: center;">
                                     <div>
-                                    <strong>${item.name} ${isPersonnalized}</strong><br>
-                                    <small>${item.sku} / ${item.color}</small>
-                                    ${persoDisplay}
+                                        <strong>${item.name}${isPersonnalized}</strong><br>
+                                        <small>${item.sku} / ${item.color}</small>
+                                        ${persoDisplay}
                                     </div>
                                     ${thumbPath ? `<img src="${thumbPath}" style="width:70px; height:70px; object-fit:contain; border:1px solid #eee; background:#fff; margin-left:10px;">` : ''}
                                 </div>
@@ -136,7 +133,6 @@ if (packingBtn) {
                 <div class="header">
                     <div>
                         <h1>BON DE COMMANDE${order.status === 0 ? ' <span style="color:red;">(ANNULÉ)</span>' : ''}</h1>
-                        ${order.status === 0 ? ' <P style="color:red;">'+status+'</P>' : ''}
                         <p><strong>COMMANDE :</strong> /cc #${order.id}</p>
                         <p><strong>DATE COMMANDE :</strong> ${formatDateToLocal(order.date)}</p>
                         <p><strong>GÉNÉRÉ LE :</strong> ${creationDate}</p>
@@ -147,8 +143,8 @@ if (packingBtn) {
                     </div>
                 </div>
                 <div class="info-grid">
-                <div><strong>VENDU À :</strong><p>${order.fname} ${order.lname}<br>${order.clientEmail}<br>${order.phone}</p></div>
-                <div><strong>EXPÉDIÉ À :</strong><p>${order.address}<br>${order.city}, ${order.province}, ${order.postalCode}</p></div>
+                    <div><strong>VENDU À :</strong><p>${order.fname} ${order.lname}<br>${order.clientEmail}<br>${order.phone}</p></div>
+                    <div><strong>EXPÉDIÉ À :</strong><p>${order.address}<br>${order.city}, ${order.province}, ${order.postalCode}</p></div>
                 </div>
                 <table>
                     <thead>
@@ -703,37 +699,50 @@ const sizesHtml = Object.values(groupedByPrice).map(group => {
 });
 
 function generateStudioHTMLForOrder(orderId, item, orderStatus) {
-    // 1. Vérification de la présence d'une signature de design
+    // 1. Cas d'un produit avec image externe / Sage (item.imgUrl) mais sans signature studio Fabric
+    if ((!item.designSignature || item.designSignature === 'null') && item.imgUrl) {
+        return `
+            <div class="cart-studio-summary" style="border-top: 1px solid #eee; padding-top: 10px; margin-top: 10px;">
+                <div class="cart-studio-container">
+                    <div class="cart-studio-row" style="display: flex; gap: 15px; margin-bottom: 15px; align-items: center;">
+                        <div class="cart-preview-item">
+                            <img src="${item.imgUrl}" 
+                                 alt="${item.name}" 
+                                 style="width: 100px; height: auto; border-radius: 4px; cursor: pointer; border: 1px solid #ddd;"
+                                 onerror="this.parentElement.innerHTML='<small>Image non disponible</small>'"
+                                 onclick="openPreviewModal('${item.imgUrl}')">
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+    }
+
+    // 2. Sécurité : si ni signature ni imgUrl n'existent
     if (!item.designSignature || item.designSignature === 'null') return '';
 
-    // 2. Récupération des données studio et vérification des vues
+    // 3. Récupération des données studio et vérification des vues
     const design = item.studioData;
     if (!design || !design.views) return '';
 
-    // 3. Détermination du mode de personnalisation sélectionné
+    // 4. Détermination du mode de personnalisation sélectionné
     const selectedOption = (design && design.selectedPersonalizationOption)
         || item.selectedPersonalizationOption
         || item.personalizationOption;
 
     const isCustomMode = selectedOption === "Personnalisé";
 
-    // 4. Construction des rangées par vue
+    // 5. Construction des rangées par vue
     let viewRows = design.views.map((view, index) => {
-        // Sélection du chemin d'accès selon le statut de la commande (0 = annulation / dossier temporaire)
-        let imagePath = `static-resources/temp-designs/${item.designSignature}/preview_v${index + 1}.png`;
-        if (orderStatus === 0) {
-            imagePath = `static-resources/temp-designs/${item.designSignature}/preview_v${index + 1}.png`;
-        }
+        // Sélection de la source d'image : Priorité à item.imgUrl, sinon preview_vX.png
+        let imagePath = item.imgUrl 
+            ? item.imgUrl 
+            : `static-resources/temp-designs/${item.designSignature}/preview_v${index + 1}.png`;
         
         // Génération de la liste des logos pour chaque vue
         const logosHtml = view.logos.map((l, logoIndex) => {
             let logoPath = `static-resources/temp-designs/${item.designSignature}/logo_v${index + 1}_n${logoIndex + 1}.png`;
-            if (orderStatus === 0) {
-                logoPath = `static-resources/temp-designs/${item.designSignature}/logo_v${index + 1}_n${logoIndex + 1}.png`;
-            }
 
             if (isCustomMode) {
-                // Mode Personnalisé : Masquer les dimensions et afficher uniquement le lien source
                 return `
                     <li>
                         <span>Logo #${logoIndex + 1} ....</span> 
@@ -742,7 +751,6 @@ function generateStudioHTMLForOrder(orderId, item, orderStatus) {
                         </a>
                     </li>`;
             } else {
-                // Modes standards (DTF, UV DTF, Broderie, etc.) : Afficher dimensions + lien source
                 const dimW = l.width || '0';
                 const dimH = l.height || '0';
                 return `
