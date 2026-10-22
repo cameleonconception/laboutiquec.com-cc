@@ -1252,7 +1252,7 @@ public function getProductDetails($pid, $sku)
             $isDetails = false;
             if (isset($item['sizes']) && is_array($item['sizes'])) {
                 foreach ($item['sizes'] as $s) {
-                    if (isset($s['size']) && ($s['size'] === 'Unité(s)')) {
+                    if (isset($s['size']) && ($s['size'] === 'Unité')) {
                         $isDetails = true;
                         break;
                     }
@@ -1331,7 +1331,7 @@ public function getProductDetails($pid, $sku)
             $isDetails = false;
             if (isset($item['sizes']) && is_array($item['sizes'])) {
                 foreach ($item['sizes'] as $s) {
-                    if (isset($s['size']) && ($s['size'] === 'Unité(s)')) {
+                    if (isset($s['size']) && ($s['size'] === 'Unité')) {
                         $isDetails = true;
                         break;
                     }
@@ -1401,7 +1401,7 @@ public function getProductDetails($pid, $sku)
             $isDetails = false;
             if (isset($item['sizes']) && is_array($item['sizes'])) {
                 foreach ($item['sizes'] as $s) {
-                    if (isset($s['size']) && ($s['size'] === 'Unité(s)')) {
+                    if (isset($s['size']) && ($s['size'] === 'Unité')) {
                         $isDetails = true;
                         break;
                     }
@@ -1481,7 +1481,7 @@ public function getProductDetails($pid, $sku)
             $isDetails = false;
             if (isset($item['sizes']) && is_array($item['sizes'])) {
                 foreach ($item['sizes'] as $s) {
-                    if (isset($s['size']) && ($s['size'] === 'Unité(s)')) {
+                    if (isset($s['size']) && ($s['size'] === 'Unité')) {
                         $isDetails = true;
                         break;
                     }

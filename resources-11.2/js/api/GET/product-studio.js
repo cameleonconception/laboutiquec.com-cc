@@ -426,7 +426,7 @@ function displayProductDetails(product, container, similarProducts) {
                         <div id="studio-personalization-options-container"></div>
                         <div class="studio-title-row">
                             <div style="display:flex; align-items:center; gap:8px;">
-                                <label class="studio-upload-btn" style="margin-bottom:0;" for="logo-uploader">Ajouter un logo</label>
+                                <label class="studio-upload-btn" style="margin-bottom:0;" for="logo-uploader">+ Ajouter un logo</label>
                             </div>
                             <span id="logo-counter-badge">0 logo</span>
                         </div>

@@ -62,6 +62,24 @@ function decodeBase64UTF8(base64String) {
 // INITIALISATION DOM & FETCH
 // ----------------------------------------------------------------------
 
+async function translateText(text) {
+    if (!text || typeof text !== 'string') return text;
+    try {
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=fr&dt=t&q=${encodeURIComponent(text)}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        // Recompose le texte si le résultat est découpé en plusieurs segments
+        if (data && data[0]) {
+            return data[0].map(segment => segment[0]).join('');
+        }
+        return text;
+    } catch (e) {
+        console.error("Erreur de traduction Google :", e);
+        return text;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     let productContainer = document.getElementById('product-details-container');
 
@@ -75,51 +93,68 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const selectedColorFromURL = searchParams.get("selectedColor");
 
-    if (eid) {
-        fetch('./../api/GET/sage-product-details?eid=' + eid + '&sku=' + sku)
-            .then(async response => {
-                const rawText = await response.text();
-                try {
-                    return JSON.parse(rawText);
-                } catch (e) {
-                    console.error("Réponse du serveur non-JSON :", rawText);
-                    throw new Error("Le serveur a renvoyé une réponse invalide.");
+   if (eid) {
+    fetch('./../api/GET/sage-product-details?eid=' + eid + '&sku=' + sku)
+        .then(async response => {
+            const rawText = await response.text();
+            try {
+                return JSON.parse(rawText);
+            } catch (e) {
+                console.error("Réponse du serveur non-JSON :", rawText);
+                throw new Error("Le serveur a renvoyé une réponse invalide.");
+            }
+        })
+        .then(async data => { // Ajout de async
+            if (data && data.success) {
+                product = data.product;
+
+                // --- TRADUCTION DES ÉLÉMENTS REÇUS ---
+                if (product.name) {
+                    product.name = await translateText(product.name);
                 }
-            })
-            .then(data => {
-                if (data && data.success) {
-                    product = data.product;
+                if (product.description) {
+                    const decodedDesc = decodeBase64UTF8(product.description);
+                    const translatedDesc = await translateText(decodedDesc);
+                    // On ré-encode en Base64 pour conserver la compatibilité avec decodeBase64UTF8 dans displayProductDetails
+                    product.description = btoa(unescape(encodeURIComponent(translatedDesc)));
+                }
+                if (Array.isArray(product.categories)) {
+                    product.categories = await Promise.all(
+                        product.categories.map(cat => translateText(cat))
+                    );
+                }
+                // -------------------------------------
 
-                    // --- APPLIQUER RS=1800 AUX PROPRIÉTÉS DU PRODUIT ---
-                    if (product.imgUrl) {
-                        product.imgUrl = formatImageUrl(product.imgUrl);
-                    }
-                    if (Array.isArray(product.imgNames)) {
-                        product.imgNames = product.imgNames.map(img => formatImageUrl(img));
-                    }
-                    if (product.colorImages) {
-                        Object.keys(product.colorImages).forEach(key => {
-                            product.colorImages[key] = formatImageUrl(product.colorImages[key]);
-                        });
-                    }
-                    // --------------------------------------------------
+                // --- APPLIQUER RS=1800 AUX PROPRIÉTÉS DU PRODUIT ---
+                if (product.imgUrl) {
+                    product.imgUrl = formatImageUrl(product.imgUrl);
+                }
+                if (Array.isArray(product.imgNames)) {
+                    product.imgNames = product.imgNames.map(img => formatImageUrl(img));
+                }
+                if (product.colorImages) {
+                    Object.keys(product.colorImages).forEach(key => {
+                        product.colorImages[key] = formatImageUrl(product.colorImages[key]);
+                    });
+                }
+                // --------------------------------------------------
 
-                    displayProductDetails(product, productContainer, data.similarProducts || []);
+                displayProductDetails(product, productContainer, data.similarProducts || []);
 
-                    if (selectedColorFromURL && product.colors && product.colors.includes(selectedColorFromURL)) {
-                        const colorSelect = document.getElementById('color-select');
-                        if (colorSelect) colorSelect.value = selectedColorFromURL;
-                        updateProductSize(selectedColorFromURL); 
-                        updateActiveThumbnail(selectedColorFromURL);
-                    } else {
-                        updateProductImage(""); 
-                    }
+                if (selectedColorFromURL && product.colors && product.colors.includes(selectedColorFromURL)) {
+                    const colorSelect = document.getElementById('color-select');
+                    if (colorSelect) colorSelect.value = selectedColorFromURL;
+                    updateProductSize(selectedColorFromURL); 
+                    updateActiveThumbnail(selectedColorFromURL);
                 } else {
-                    console.error("Erreur renvoyée par l'API :", data.error || data);
+                    updateProductImage(""); 
                 }
-            })
-            .catch(error => console.error('Error fetching products:', error));
-    } else {
+            } else {
+                console.error("Erreur renvoyée par l'API :", data.error || data);
+            }
+        })
+        .catch(error => console.error('Error fetching products:', error));
+} else {
         window.location.href = `./studio?pid=${pid}&sku=${sku}&selectedColor=${selectedColorFromURL}`;
         return;
     }
@@ -474,7 +509,7 @@ function displayProductDetails(product, container, similarProducts = []) {
                         <div id="studio-personalization-options-container"></div>
                         <div class="studio-title-row">
                             <div style="display:flex; align-items:center; gap:8px;">
-                                <label class="studio-upload-btn" style="margin-bottom:0;" for="logo-uploader">Ajouter un logo</label>
+                                <label class="studio-upload-btn" style="margin-bottom:0;" for="logo-uploader">+ Ajouter un logo</label>
                             </div>
                             <span id="logo-counter-badge">0 logo</span>
                         </div>
@@ -557,9 +592,13 @@ function displayProductDetails(product, container, similarProducts = []) {
         if (personalizationOptionsContainer) {
             personalizationOptionsContainer.innerHTML = ''; 
 
-            // Conserver UNIQUEMENT l'option Personnalisé
+            // Conserver UNIQUEMENT l'option Personnalisé et blank
             personalizationOptionsContainer.innerHTML = `
-                <div class="personalization-option active" data-name="Personnalisé" onclick="updateSelectedPersonalizationOption(event);event.stopPropagation()">
+                <div class="personalization-option active" data-name="Blank" onclick="updateSelectedPersonalizationOption(event);event.stopPropagation()">
+                    SANS LOGO
+                    <span class="additionnalInfo" onclick="openAdditionnalInfo(\`Vous pouvez à tout moment commander nos produits sans logo.\`)">?</span>
+                </div>
+                <div class="personalization-option " data-name="Personnalisé" onclick="updateSelectedPersonalizationOption(event);event.stopPropagation()">
                     PERSONNALISÉ
                     <span class="additionnalInfo" onclick="openAdditionnalInfo(\`Vous pouvez sélectionner les différentes options et personnaliser ce produit comme vous le voulez.\`)">?</span>
                 </div>
@@ -713,12 +752,12 @@ function updateProductSize(selectedColor) {
         sizeDiv.classList.add('variantDiv');
         sizeDiv.dataset.rawPrice = 0; 
         sizeDiv.dataset.sizeVariantId = 0;
-        sizeDiv.dataset.sizeName = "Unité(s)";
+        sizeDiv.dataset.sizeName = "Unité";
         sizeDiv.dataset.sizeStock = 999;
 
         sizeDiv.innerHTML = `
             <input type="number" min="1" value="" inputmode="numeric" placeholder="0">
-            <span class="sizeName">Unité(s)</span>
+            <span class="sizeName">Unité</span>
         `;
 
         sizeDiv.querySelector('input').addEventListener('input', updateLivePriceDisplay);
@@ -1475,8 +1514,12 @@ function updateSelectedPersonalizationOption(e) {
 
         if (detailsContainer) {
             detailsContainer.innerHTML = decodeBase64UTF8(product.customPersonalizationDetails) || `
-            <p>Notre équipe utilisera vos logos pour concevoir une épreuve visuelle. <strong>Veuillez préciser ici toutes vos consignes</strong> : tailles/dimensions, quantités par grandeur, emplacements des logos et toute autre spécification utile.</p>
-            <textarea data-pvalue="Notes" data-price="0" placeholder="Ex : 12x(S), logo centré devant, gravures, etc."></textarea>`;
+                
+                <p>Nous utiliserons vos logos pour créer une épreuve visuelles</p>
+                
+                <strong style="margin-bottom:-10px;">Dites-nous en plus !</strong>
+                <textarea pvalue="notes" placeholder="(ex : emplacements des logos, couleurs, grandeurs, etc.)"></textarea>`;
+            
         }
 
         const updateSizeLabel = () => {

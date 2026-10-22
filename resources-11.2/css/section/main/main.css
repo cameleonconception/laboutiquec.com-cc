@@ -1451,12 +1451,6 @@ height:fit-content;
 }
 
 
-#studio-actions-container .customSize input, #personalization-details select{
-    border:1px solid var(--secondary-color) !important;
-    background-color: rgba(255, 255, 255, 0.95) !important;
-    color: 1px solid var(--primary-color) !important;
-}
-
 
 #studio-personalization-options-container{
     position: absolute;
@@ -1580,10 +1574,14 @@ height:fit-content;
     border: 1px solid var(--light-accent-color);
 }
 
-#personalization-details input, #personalization-details textarea{
-    color: var(--secondary-color);
-    background-color: rgba(255, 255, 255, 0.9) !important;
-    border: 1px solid var(--light-accent-color) !important;
+#personalization-details input, #personalization-details textarea, #personalization-details select{
+color: var(--primary-color);
+    background-color: rgba(255, 255, 255, 0.8) !important;
+    border-radius: 5px !important;
+    border: 1px solid rgb(146, 146, 146) !important;
+    font-size: 0.95rem;
+    outline: none;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
 #logo-list-container{
