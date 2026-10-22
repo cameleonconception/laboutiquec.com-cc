@@ -21,21 +21,21 @@ function isRequired($field, $requiredFieldsName)
     return in_array($field, $requiredFieldsName);
 }
 
-
 if (isset($_POST['products'])) {
     $required = isRequired('products', $requiredFieldsName);
     $cartItems = json_decode($_POST['products'], true) ?? [];
     $product = new Products();
-    $cart = $product->validateCartForPayment($cartItems);
+    $validationResult = $product->validateCartForPayment($cartItems);
 
-    if (!$cart['success']) {
-        $errors['cart'] = $cart['message'];
+    if (!$validationResult['success']) {
+        $errors['cart'] = $validationResult['message'] ?? 'Erreur de validation du panier.';
+        $cart = $cartItems; // Conserver les éléments pour éviter le crash fatal
+    } else {
+        $cart = $validationResult['cart'];
     }
-    $cart = $cart['cart'];
 } else {
     $errors['cart'] = 'Un problème est survenu avec le panier. (initOrder)';
 }
-
 
 
 if (isset($_POST['fname'])) {

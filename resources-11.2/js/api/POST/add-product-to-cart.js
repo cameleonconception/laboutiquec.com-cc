@@ -28,7 +28,6 @@ function clearProductErrors() {
 }
 
 function getCountCartElement() {
-    // Ceci est une version simplifiée, vous pouvez la remplacer par votre logique réelle
     const cart = JSON.parse(localStorage.getItem("cart/cc") || "[]");
     let totalItems = cart.reduce((total, product) => {
         const productQty = product.sizes.reduce((sum, size) => sum + size.qte, 0);
@@ -46,17 +45,12 @@ function handleCartAnimation(productCard) {
     addToCartButton.disabled = true;
     addToCartButton.classList.remove('loading');
     addToCartButton.classList.add('active');
-    // On sauvegarde le texte original pour le remettre plus tard si besoin
     addToCartButton.textContent = '✓';
 
-
     setTimeout(() => {
-        
-    addToCartButton.disabled = false;
-    // On sauvegarde le texte original pour le remettre plus tard si besoin
-    addToCartButton.textContent = 'Ajouter à ma demande';
-    addToCartButton.classList.remove('active');
-
+        addToCartButton.disabled = false;
+        addToCartButton.textContent = 'Ajouter à ma demande';
+        addToCartButton.classList.remove('active');
     }, 500);
 }
 
@@ -67,10 +61,7 @@ function handleCartAnimation(productCard) {
 function hideErrorOnClickOutside(event) {
     const errorContainer = document.getElementById('add-to-cart-error-container');
     
-    // Si l'élément cliqué (event.target) n'est PAS DANS le conteneur d'erreurs
     if (errorContainer && !errorContainer.contains(event.target)) {
-        // Et si l'élément cliqué n'est pas l'input de quantité (pour ne pas cacher l'erreur
-        // si l'utilisateur essaie de corriger une quantité immédiatement)
         if (!event.target.closest('.product-sizes input[type="number"]')) {
             clearProductErrors();
         }
@@ -79,7 +70,25 @@ function hideErrorOnClickOutside(event) {
 
 // ------------------------------------------------------------------------------------------------
 
-async function addProductToCart() {
+async function addProductToCart(details) {
+
+    let supplierId = "";
+    let supplierName = "";
+    let supplierShippingCost = "";
+    let freeShippingAt = "";
+
+    if (details) {
+        supplierId = 12;
+        supplierName = "Sage";
+        supplierShippingCost = 0;
+        freeShippingAt = 0;
+    } else {
+        supplierId = product.supplier.id;
+        supplierName = product.supplier.name;
+        supplierShippingCost = product.supplier.shippingCost;
+        freeShippingAt = product.supplier.freeShippingAt;
+    }
+
     clearProductErrors(); 
     
     let addToCartButton = document.querySelector("#addToCartBtn");
@@ -90,60 +99,72 @@ async function addProductToCart() {
     let id = productCard.getAttribute("data-pid");
     let sku = productCard.getAttribute("data-psku");
     let name = productCard.getAttribute("data-pname");
-    let color = productCard.querySelector(".product-colors").value;
+    
+    let colorSelect = productCard.querySelector(".product-colors");
+    let color = colorSelect ? colorSelect.value : "";
     let sizeElements = productCard.querySelectorAll(".variantDiv");
 
     const supplierData = {
-        id: product.supplier.id,
-        name: product.supplier.name,
-        shippingCost: product.supplier.shippingCost,
-        freeShippingAt: product.supplier.freeShippingAt
+        id: supplierId, 
+        name: supplierName,
+        shippingCost: supplierShippingCost,
+        freeShippingAt: freeShippingAt
     };
     
+    // --- 1. VALIDATION DES OPTIONS ---
 // --- 1. VALIDATION DES OPTIONS ---
     const activeOptionElement = document.querySelector('.personalization-option.active');
     const selectedStudioOption = activeOptionElement ? activeOptionElement.getAttribute('data-name') : null;
 
-    // Récupération de tous les sélecteurs de personnalisation dans le conteneur du studio
-    const personalizationSelects = document.querySelectorAll('#dynamic-controls-block select.product-personalization-option');
-
-    let personalizationValue = "Aucune personnalisation";
+    let selectedValues = [];
     let personalizationPrice = 0;
 
-    // Filtrer pour ne garder que les sélecteurs réellement affichés à l'écran
-    const visibleSelects = Array.from(personalizationSelects).filter(select => select.style.display !== 'none');
+    // A. Traitement des sélecteurs <select>
+    const personalizationSelects = document.querySelectorAll('#dynamic-controls-block select.product-personalization-option, #personalization-details select');
+    const visibleSelects = Array.from(personalizationSelects).filter(select => select.style.display !== 'none' && select.offsetParent !== null);
 
-    if (visibleSelects.length > 0) {
-        const selectedValues = [];
-
-        for (const select of visibleSelects) {
-            // Validation : si l'utilisateur n'a rien choisi dans l'un des champs
-            if (select.value === '') {
-                displayProductError("Vous devez choisir une option pour chaque sélecteur de personnalisation.");
-                return resetAddButton(addToCartButton);
-            }
-
-            // Récupérer l'élément <option> actuellement sélectionné
-            const selectedOption = select.options[select.selectedIndex];
-            
-            // Priorité au dataset custom (data-pvalue) si défini, sinon la valeur/texte du select
-            const optionText = selectedOption.getAttribute('data-pvalue') || selectedOption.text || select.value;
-            selectedValues.push(optionText.trim());
-
-            // Additionner le prix supplémentaire de chaque option s'il existe
-            const optionPrice = parseFloat(selectedOption.getAttribute('data-price')) || 0;
-            personalizationPrice += optionPrice;
+    for (const select of visibleSelects) {
+        if (select.value === '') {
+            displayProductError("Vous devez choisir une option pour chaque sélecteur de personnalisation.");
+            return resetAddButton(addToCartButton);
         }
 
-        // Assembler toutes les valeurs séparées par une virgule (ex: "Horizontale, Bleu")
-        personalizationValue = selectedValues.join(', ');
+        const selectedOption = select.options[select.selectedIndex];
+        const optionText = selectedOption.getAttribute('data-pvalue') || selectedOption.text || select.value;
+        if (optionText && optionText.trim() !== '') {
+            selectedValues.push(optionText.trim());
+        }
+
+        const optionPrice = parseFloat(selectedOption.getAttribute('data-price')) || 0;
+        personalizationPrice += optionPrice;
     }
 
-    // --- 1.1 VALIDATION DU PRODUIT VIERGE (NOUVEAU) ---
-    // Si le produit ne peut pas être vendu sans logo (blank == 0)
-    // ET que l'option sélectionnée n'est pas "Blank" (cas où l'option Blank serait cachée ou interdite)
-    // OU simplement si l'utilisateur essaie de commander sans logo sur le canvas
-    
+    // B. Traitement des <textarea>
+    const textareas = document.querySelectorAll('#personalization-details textarea, #dynamic-controls-block textarea');
+    textareas.forEach(textarea => {
+        const val = textarea.value ? textarea.value.trim() : '';
+        if (val !== '') {
+            selectedValues.push(val);
+        }
+    });
+
+    // C. Traitement EXCLUSIF des <input> ayant l'attribut [data-pvalue]
+    const pvalueInputs = document.querySelectorAll('#personalization-details input[data-pvalue], #dynamic-controls-block input[data-pvalue]');
+    pvalueInputs.forEach(input => {
+        if ((input.type === 'radio' || input.type === 'checkbox') && !input.checked) return;
+        if (input.type === 'hidden' || input.style.display === 'none') return;
+
+        const val = input.value ? input.value.trim() : '';
+        const pvalueName = input.getAttribute('data-pvalue').trim();
+
+        if (val !== '') {
+            selectedValues.push(`${pvalueName}: ${val}`);
+        }
+    });
+
+    let personalizationValue = selectedValues.length > 0 ? selectedValues.join(', ') : "Aucune personnalisation";
+
+    // --- 1.1 VALIDATION DU PRODUIT VIERGE ---
     const logosOnCanvas = (typeof canvas !== 'undefined' && canvas) 
         ? canvas.getObjects().filter(obj => obj.imageOwner).length 
         : 0;
@@ -155,7 +176,6 @@ async function addProductToCart() {
         }
     }
     
-    // Si l'utilisateur a choisi "SANS LOGO" explicitement mais que le produit l'interdit
     if (selectedStudioOption === "Blank" && parseInt(product.blank) === 0) {
         displayProductError("Désolé, la vente sans logo n'est pas disponible pour cet article.");
         return resetAddButton(addToCartButton);
@@ -166,26 +186,48 @@ async function addProductToCart() {
     let availableSizes = [];
     let hasQuantities = false;
 
-    sizeElements.forEach(sizeEl => {
-        const rawPrice = 0;
-        const sizeData = {
-            size: sizeEl.dataset.sizeName,
-            variantId: parseInt(sizeEl.dataset.sizeVariantId),
-            stock: sizeEl.dataset.sizeStock,
-            rawPrice: 0 
-        };
-        availableSizes.push(sizeData);
-
-        let inputQte = parseInt(sizeEl.querySelector("input").value);
-        if (inputQte > 0) {
-            hasQuantities = true;
-            newItemsToAdd.push({ ...sizeData, qte: inputQte });
+    if (details) {
+        // En mode details : Lire la quantité dans l'input de la variantDiv
+        let inputEl = productCard.querySelector(".variantDiv input[type='number']") || productCard.querySelector(".product-sizes input[type='number']");
+        let inputQte = inputEl ? parseInt(inputEl.value) : 0;
+        
+        if (isNaN(inputQte) || inputQte <= 0) {
+            displayProductError("Veuillez saisir une quantité.");
+            if (typeof filterLogosByImage === 'function') filterLogosByImage();
+            return resetAddButton(addToCartButton);
         }
-    });
+
+        const customSizeData = {
+            size: "Quantité tot.",
+            variantId: 0,
+            stock: 999,
+            rawPrice: 0
+        };
+        availableSizes.push(customSizeData);
+        newItemsToAdd.push({ ...customSizeData, qte: inputQte });
+        hasQuantities = true;
+    } else {
+        // Mode normal : Parcours de toutes les variantes
+        sizeElements.forEach(sizeEl => {
+            const sizeData = {
+                size: sizeEl.dataset.sizeName,
+                variantId: parseInt(sizeEl.dataset.sizeVariantId),
+                stock: sizeEl.dataset.sizeStock,
+                rawPrice: 0 
+            };
+            availableSizes.push(sizeData);
+
+            let inputQte = parseInt(sizeEl.querySelector("input")?.value || 0);
+            if (inputQte > 0) {
+                hasQuantities = true;
+                newItemsToAdd.push({ ...sizeData, qte: inputQte });
+            }
+        });
+    }
 
     if (!hasQuantities) {
         displayProductError("Veuillez saisir une quantité.");
-        filterLogosByImage(); // <-- Re-filtrer pour s'assurer d'être synchro avec l'image visible actuelle
+        if (typeof filterLogosByImage === 'function') filterLogosByImage();
         return resetAddButton(addToCartButton);
     }
 
@@ -199,20 +241,39 @@ async function addProductToCart() {
         const uniqueViews = [...new Set(allLogos.map(l => l.imageOwner))];
         
         try {
-            const temporaryViews = await Promise.all(uniqueViews.map(async (viewSrc) => {
-                const logosOnThisView = allLogos.filter(l => l.imageOwner === viewSrc);
-                const previewImage = await getSingleViewPreview(viewSrc, logosOnThisView);
+            let temporaryViews = [];
 
-                return {
-                    viewImage: viewSrc,
-                    previewWithLogos: previewImage, 
-                    logos: logosOnThisView.map(l => ({
-                        width: (l.getScaledWidth() / currentDynamicPPI).toFixed(2),
-                        height: (l.getScaledHeight() / currentDynamicPPI).toFixed(2),
-                        src: l.getElement().src
-                    }))
-                };
-            }));
+            if (details) {
+                // Mode DETAILS : Pas de conversion Canvas toDataURL
+                temporaryViews = uniqueViews.map(viewSrc => {
+                    const logosOnThisView = allLogos.filter(l => l.imageOwner === viewSrc);
+                    return {
+                        viewImage: viewSrc,
+                        previewWithLogos: viewSrc,
+                        logos: logosOnThisView.map(l => ({
+                            width: (l.getScaledWidth() / (typeof currentDynamicPPI !== 'undefined' ? currentDynamicPPI : 1)).toFixed(2),
+                            height: (l.getScaledHeight() / (typeof currentDynamicPPI !== 'undefined' ? currentDynamicPPI : 1)).toFixed(2),
+                            src: l.getElement().src
+                        }))
+                    };
+                });
+            } else {
+                // Mode NORMAL : Rendu Canvas standard
+                temporaryViews = await Promise.all(uniqueViews.map(async (viewSrc) => {
+                    const logosOnThisView = allLogos.filter(l => l.imageOwner === viewSrc);
+                    const previewImage = await getSingleViewPreview(viewSrc, logosOnThisView);
+
+                    return {
+                        viewImage: viewSrc,
+                        previewWithLogos: previewImage, 
+                        logos: logosOnThisView.map(l => ({
+                            width: (l.getScaledWidth() / currentDynamicPPI).toFixed(2),
+                            height: (l.getScaledHeight() / currentDynamicPPI).toFixed(2),
+                            src: l.getElement().src
+                        }))
+                    };
+                }));
+            }
 
             const uploadResult = await uploadDesignToServer(designSignature, temporaryViews);
 
@@ -273,32 +334,37 @@ async function addProductToCart() {
             sizes: newItemsToAdd,
             availableSizes: availableSizes 
         });
-
-        
     }
 
-   // --- 5. FINALISATION ---
+    // --- 5. FINALISATION ---
     localStorage.setItem("cart/cc", JSON.stringify(cart));
     
-    // 1. Réinitialiser les champs de quantité
-    productCard.querySelectorAll(".variantDiv input").forEach(input => input.value = "");
+    // Réinitialiser les champs
+    productCard.querySelectorAll("input, textarea").forEach(field => {
+        if (field.type === "checkbox" || field.type === "radio") {
+            field.checked = false;
+        } else {
+            field.value = "";
+        }
+    });
 
-    // 2. VIDER LE CANVAS (Suppression des logos)
+    productCard.querySelectorAll("select").forEach(select => {
+        select.selectedIndex = 0;
+    });
+    
+    // Vider le canvas
     if (typeof canvas !== 'undefined' && canvas) {
-        canvas.clear(); // Efface tous les objets Fabric
+        canvas.clear();
         
-        // 3. VIDER LA LISTE VISUELLE DES LOGOS
         const listContainer = document.getElementById('logo-list-container');
         if (listContainer) {
             listContainer.innerHTML = '';
         }
         
-        // 4. METTRE À JOUR LE COMPTEUR ET LES PRIX
-        updateTotalLogoCounter();
-        updateLivePriceDisplay();
+        if (typeof updateTotalLogoCounter === 'function') updateTotalLogoCounter();
+        if (typeof updateLivePriceDisplay === 'function') updateLivePriceDisplay();
     }
 
-    // REMPLACER updateActiveThumbnailWithLogos() PAR :
     clearAllThumbnailLogos(); 
 
     getCountCartElement();
@@ -309,22 +375,16 @@ function clearAllThumbnailLogos() {
     const verticalContainer = document.getElementById('vertical-thumbnails-container');
     if (!verticalContainer) return;
 
-    // Vider le conteneur overlay de chaque vignette
     const overlays = verticalContainer.querySelectorAll('.thumb-logo-overlay');
     overlays.forEach(overlay => {
         overlay.innerHTML = '';
     });
 }
 
-// Fonction utilitaire pour éviter la répétition du reset de bouton
 function resetAddButton(btn) {
     btn.disabled = false;
     btn.classList.remove('loading');
 }
-/**
- * Parcourt le panier et met à jour le .price de chaque taille 
- * basé sur la quantité totale du même SKU.
- */
 
 async function uploadDesignToServer(signature, views) {
     const response = await fetch('../api/POST/addTemporaryDesign', {
@@ -335,14 +395,12 @@ async function uploadDesignToServer(signature, views) {
     return await response.json();
 }
 
-// --- Nouvelle fonction utilitaire pour capturer le visuel complet ---
 async function getDesignPreviews() {
     const slideshowContainer = document.querySelector('.slideshowContainer');
     const allImages = Array.from(slideshowContainer.querySelectorAll('img'));
     const previews = [];
 
     for (const img of allImages) {
-        // On vérifie s'il y a des logos associés à CETTE image spécifique
         const logosOnThisView = canvas.getObjects().filter(obj => obj.imageOwner === img.src);
 
         if (logosOnThisView.length > 0) {
@@ -352,11 +410,8 @@ async function getDesignPreviews() {
                 tempCanvas.width = canvas.width;
                 tempCanvas.height = canvas.height;
 
-                // 1. Dessiner le vêtement de cette vue
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-                // 2. Créer une image temporaire des logos uniquement pour cette vue
-                // On cache les logos qui n'appartiennent pas à cette image
                 const originalStates = canvas.getObjects().map(obj => ({
                     obj: obj,
                     visible: obj.visible
@@ -369,13 +424,9 @@ async function getDesignPreviews() {
                 const studioImage = new Image();
                 studioImage.onload = function() {
                     ctx.drawImage(studioImage, 0, 0);
-                    
-                    // Restaurer la visibilité
                     originalStates.forEach(state => state.obj.visible = state.visible);
-                    
                     resolve(tempCanvas.toDataURL('image/jpeg', 1));
                 };
-                // Capture du canvas avec seulement les logos filtrés
                 studioImage.src = canvas.toDataURL({ format: 'png' });
             });
             previews.push(preview);
@@ -394,11 +445,7 @@ async function getSingleViewPreview(imgSrc, logosOnView) {
             return resolve(null);
         }
 
-        // --- AJUSTEMENT HAUTE QUALITÉ ---
-        // 1800px offre un rendu très net (HD) idéal pour impression/validation
         const MAX_WIDTH = 1800; 
-        
-        // Utiliser la largeur réelle/naturelle de l'image si elle est chargée, sinon la taille max
         const baseWidth = imgElement.naturalWidth || canvas.width;
         const scale = Math.min(1, MAX_WIDTH / baseWidth);
 
@@ -411,23 +458,19 @@ async function getSingleViewPreview(imgSrc, logosOnView) {
         tempCanvas.width = targetWidth;
         tempCanvas.height = targetHeight;
 
-        // Lissage du contexte 2D pour éviter la pixellisation
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
 
-        // 1. Dessiner l'image du produit en Haute Définition
         ctx.drawImage(imgElement, 0, 0, targetWidth, targetHeight);
 
         const activeOptionElement = document.querySelector('.personalization-option.active');
         const selectedOptionName = activeOptionElement ? activeOptionElement.getAttribute('data-name') : null;
 
         if (selectedOptionName === "Personnalisé") {
-            // Qualité JPEG augmentée à 0.90
             resolve(tempCanvas.toDataURL('image/jpeg', 0.90));
             return;
         }
 
-        // 2. Masquer les logos des autres vues
         const originalStates = canvas.getObjects().map(obj => ({
             obj: obj,
             visible: obj.visible
@@ -437,20 +480,15 @@ async function getSingleViewPreview(imgSrc, logosOnView) {
             obj.visible = logosOnView.includes(obj);
         });
 
-        // 3. Superposer la couche de logos avec le ratio ajusté
         const studioImage = new Image();
         studioImage.onload = function() {
             ctx.drawImage(studioImage, 0, 0, targetWidth, targetHeight);
-            
-            // Restaurer les états
             originalStates.forEach(state => state.obj.visible = state.visible);
             if (typeof filterLogosByImage === 'function') filterLogosByImage();
 
-            // Exportation en JPEG Haute Qualité (0.90 = 90% netté / compression optimale)
             resolve(tempCanvas.toDataURL('image/jpeg', 0.90));
         };
         
-        // Exporter le canvas Fabric au bon ratio de multiplicateur
         const fabricScale = targetWidth / canvas.width;
         studioImage.src = canvas.toDataURL({ 
             format: 'png',

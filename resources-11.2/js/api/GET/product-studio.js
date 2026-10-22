@@ -505,7 +505,7 @@ function displayProductDetails(product, container, similarProducts) {
         const textBlock = document.getElementById('text-info-block');
         textBlock.innerHTML = `
             <h1 class="title">${product.name}</h1>
-            <p class='light' style="margin-top:-10px;">${product.supplier.name} - ${product.sku}</p>
+            <p class='light' style="margin-top:-10px;">${product.sku}</p>
             <p>${decodeBase64UTF8(product.description)}</p>
         `;
         textBlock.style.opacity = '1';

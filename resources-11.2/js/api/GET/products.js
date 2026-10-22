@@ -317,7 +317,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     let initialImageSrc = product.thumbPic || './static-resources/default/products/introuvable.webp';
                     
                     if (product.thumbPic) {
-                        initialImageSrc = product.thumbPic.replace('RS=150', 'RS=300');
+                        initialImageSrc = product.thumbPic.replace(/RS=[^&]+/, 'RS=1800');
                     }
 
                     window.lastLoadedProductsImgNames[baseSku] = product.thumbPic ? [product.thumbPic] : [];

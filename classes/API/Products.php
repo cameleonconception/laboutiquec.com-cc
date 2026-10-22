@@ -592,60 +592,120 @@ public function getSageProducts($page, $query)
 
 public function getSageProductDetails($eid)
 {
-    
-    $open = true;
+    // Définir l'en-tête JSON immédiatement
+    header('Content-Type: application/json; charset=utf-8');
 
-    if($open){
-    $url = "https://www.promoplace.com/ws/ws.dll/ConnectAPI";
+    try {
+        if (empty($eid)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Paramètre EID manquant ou invalide']);
+            exit;
+        }
 
-    $data = [
-        "serviceId" => 104,
-        "apiVer" => 130,
-        "auth" => [
-            "acctId"  => getenv('SAGE_ACCT_ID')  ?: ($_ENV['SAGE_ACCT_ID']  ?? ''),
-            "loginId" => getenv('SAGE_LOGIN_ID') ?: ($_ENV['SAGE_LOGIN_ID'] ?? ''),
-            "key"     => getenv('SAGE_AUTH_KEY')  ?: ($_ENV['SAGE_AUTH_KEY']  ?? '')
-        ],
-        "search" => [
-            "prodEId" => $eid
+        $url = "https://www.promoplace.com/ws/ws.dll/ConnectAPI";
+
+        $data = [
+            "serviceId" => 104,
+            "apiVer"    => 130,
+            "auth"      => [
+                "acctId"  => getenv('SAGE_ACCT_ID')  ?: ($_ENV['SAGE_ACCT_ID']  ?? ''),
+                "loginId" => getenv('SAGE_LOGIN_ID') ?: ($_ENV['SAGE_LOGIN_ID'] ?? ''),
+                "key"     => getenv('SAGE_AUTH_KEY')  ?: ($_ENV['SAGE_AUTH_KEY']  ?? '')
+            ],
+            "prodEId"   => $eid
+        ];
+
+        $jsonData = json_encode($data);
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonData);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Content-Length: ' . strlen($jsonData)
+        ]);
+
+        $response = curl_exec($ch);
+        $error    = curl_error($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+        curl_close($ch);
+
+        if ($error) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Erreur cURL : ' . $error]);
+            exit;
+        }
+
+        if ($httpCode !== 200) {
+            http_response_code($httpCode);
+            echo json_encode(['success' => false, 'error' => "Erreur API Sage (HTTP $httpCode)", 'details' => $response]);
+            exit;
+        }
+
+        // Décoder la réponse JSON de Sage
+        $responseData = json_decode($response, true);
+        $product = $responseData['product'] ?? [];
+
+        // Récupérer le nom
+        $name = $product['prName'] ?? '';
+        $description = $product['description'] ?? '';
+        $sku = $product['itemNum'] ?? '';
+        $id = $product['prodEid'] ?? '';
+
+        // Récupérer les chaînes
+        $colorsString = $product['colors'] ?? '';
+        $categoriesString = $product['categories'] ?? '';
+
+        // Traduction et conversion sécurisée
+        $translatedColors = !empty($colorsString) ? $colorsString : '';
+        $colorsArray = !empty($translatedColors) 
+            ? array_map('trim', explode(',', $translatedColors)) 
+            : [];
+
+        $translatedCategories = !empty($categoriesString) ? $categoriesString : '';
+        $categoriesArray = !empty($translatedCategories) 
+            ? array_map('trim', explode(',', $translatedCategories)) 
+            : [];
+
+        // Extraction des images par couleur depuis 'pics'
+        $colorImages = [];
+        $pics = $product['pics'] ?? [];
+
+        foreach ($pics as $pic) {
+            if (!empty($pic['caption']) && !empty($pic['url'])) {
+                $captionTrimmed = trim($pic['caption']);
+                $colorName = $captionTrimmed;
+                $colorImages[$colorName] = $pic['url'];
+            }
+        }
+
+        // Réponse valide retournée au client
+        echo json_encode([
+            'success' => true,
+            'product' => [
+                'name'        => $name,
+                'colors'      => $colorsArray,
+                'categories'  => $categoriesArray,
+                'colorImages' => $colorImages,
+                'imgUrl'      => $pics[0]['url'] ?? "",
+                'description' => $description,
+                'sku' => $sku,
+                'id' => $id,
+                'raw'         => $product
             ]
-    ];
+        ]);
+        exit;
 
-    $jsonData = json_encode($data);
-
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonData);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Content-Type: application/json',
-        'Content-Length: ' . strlen($jsonData)
-    ]);
-
-    $response = curl_exec($ch);
-    $error    = curl_error($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-    unset($ch);
-
-    if ($error) {
+    } catch (\Throwable $e) {
         http_response_code(500);
-        echo json_encode(["error" => "Erreur cURL : " . $error]);
+        echo json_encode([
+            'success' => false, 
+            'error'   => 'Erreur interne PHP : ' . $e->getMessage()
+        ]);
         exit;
     }
-
-    if ($httpCode !== 200) {
-        http_response_code($httpCode);
-        echo json_encode(["error" => "Erreur API Sage (HTTP $httpCode)", "details" => $response]);
-        exit;
-    }
-
-    // $response est DEJA du JSON renvoyé par Sage
-    header('Content-Type: application/json');
-    echo $response; 
-    exit;
-    }
-    
 }
 
 public function generateGoogleMerchantXML() {
@@ -1172,211 +1232,277 @@ public function getProductDetails($pid, $sku)
     // ---------------------------------------------------------
     // VALIDATE CART FOR PAYMENT (corrigée HY093 + logs)
     // ---------------------------------------------------------
-public function validateCartForPayment($cartItems)
+// ---------------------------------------------------------
+    // VALIDATE CART FOR PAYMENT (support produits distants / Sage)
+    // ---------------------------------------------------------
+    public function validateCartForPayment($cartItems)
     {
         $this->debug_log("CART ITEMS REÇUS POUR PAIEMENT", $cartItems);
 
-        $productIds = [];
+        if (empty($cartItems) || !is_array($cartItems)) {
+            return ['success' => false, 'message' => 'Panier vide ou invalide.', 'cart' => []];
+        }
+
+        // Séparer les ID locaux (BDD) des produits distants (Sage/Details)
+        $localProductIds = [];
         foreach ($cartItems as $item) {
-            if (isset($item['id']) && is_numeric($item['id'])) {
-                $productIds[] = intval($item['id']);
-            }
-        }
-
-        $uniqueProductIds = array_values(array_unique(array_filter($productIds, fn($id) => $id > 0)));
-
-        if (empty($uniqueProductIds)) {
-            return ['success' => false, 'message' => 'Aucun ID de produit valide.'];
-        }
-
-        $dbConnection = new Connection;
-        $pdo = $dbConnection->getPDO();
-        $pdo->exec("SET SESSION group_concat_max_len = 1000000;");
-
-        $placeholders = implode(',', array_fill(0, count($uniqueProductIds), '?'));
-
-        // 1. REQUÊTE SQL : Récupération des données de variantes et de stock
-        $sql = "
-        SELECT P.id, P.sku, P.name,
-            GROUP_CONCAT(CONCAT(Cl.name, ':', S.name, ':', pscp.stock, ':', pscp.price)) AS pricingData
-        FROM products AS P
-        LEFT JOIN product_size_color_price AS pscp ON P.id = pscp.product_id
-        LEFT JOIN colors AS Cl ON pscp.color_id = Cl.id
-        LEFT JOIN sizes AS S ON pscp.size_id = S.id
-        WHERE P.id IN ($placeholders) AND P.active = 1
-        GROUP BY P.id, P.sku, P.name";
-
-        try {
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute($uniqueProductIds);
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            $lookup = [];
-            foreach ($rows as $p) {
-                $pricing = [];
-                if (!empty($p['pricingData'])) {
-                    $entries = explode(',', $p['pricingData']);
-                    foreach ($entries as $entry) {
-                        $parts = explode(':', $entry);
-                        if (count($parts) === 4) {
-                            list($c, $s, $stock, $price) = $parts;
-                            $pricing[trim($c)][trim($s)] = [
-                                'stock' => trim($stock),
-                                'rawPrice' => (float)$price
-                            ];
-                        }
+            $suppId = $item['supplierId'] ?? ($item['supplier']['id'] ?? null);
+            $suppName = $item['supplier']['name'] ?? '';
+            
+            $isDetails = false;
+            if (isset($item['sizes']) && is_array($item['sizes'])) {
+                foreach ($item['sizes'] as $s) {
+                    if (isset($s['size']) && ($s['size'] === 'Unité(s)')) {
+                        $isDetails = true;
+                        break;
                     }
                 }
-                $lookup[$p['id']] = ['sku' => $p['sku'], 'pricing' => $pricing];
             }
 
-            // 2. VALIDATION DU PANIER POUR PAIEMENT
-            $invalid = [];
-            foreach ($cartItems as $item) {
-                $id = $item['id'];
-                $signature = $item['designSignature'] ?? 'null';
-                $color = $item['color'] ?? '';
-
-                // A. Vérification de la présence et de l'état actif du produit
-                if (!isset($lookup[$id])) {
-                    $invalid[] = ['id' => $id, 'designSignature' => $signature, 'reason' => "Produit inactif ou inexistant"];
-                    continue;
+            // Si c'est un produit BDD standard (pas Sage / pas Details)
+            if ($suppId != 12 && strtolower($suppName) !== 'sage' && !$isDetails) {
+                if (isset($item['id']) && is_numeric($item['id'])) {
+                    $localProductIds[] = intval($item['id']);
                 }
+            }
+        }
 
-                // B. Détection de la méthode de personnalisation
-                $personalizationOption = $item['studioData']['selectedPersonalizationOption'] 
-                    ?? $item['selectedPersonalizationOption'] 
-                    ?? null;
+        $uniqueProductIds = array_values(array_unique(array_filter($localProductIds, fn($id) => $id > 0)));
 
-                // SI MODE "PERSONNALISÉ" : Le produit existe et est actif, on saute la vérification des variantes et du stock
-                if ($personalizationOption === "Personnalisé") {
-                    continue;
-                }
+        $lookup = [];
+        if (!empty($uniqueProductIds)) {
+            $dbConnection = new Connection;
+            $pdo = $dbConnection->getPDO();
+            $pdo->exec("SET SESSION group_concat_max_len = 1000000;");
 
-                $pricing = $lookup[$id]['pricing'];
+            $placeholders = implode(',', array_fill(0, count($uniqueProductIds), '?'));
 
-                // C. Validation des variantes et des stocks pour les modes standard (DTF, Broderie, etc.)
-                if (isset($item['sizes']) && is_array($item['sizes'])) {
-                    foreach ($item['sizes'] as $sizeItem) {
-                        $sizeName = $sizeItem['size'];
-                        $qte = (int)$sizeItem['qte'];
+            $sql = "
+            SELECT P.id, P.sku, P.name,
+                GROUP_CONCAT(CONCAT(Cl.name, ':', S.name, ':', pscp.stock, ':', pscp.price)) AS pricingData
+            FROM products AS P
+            LEFT JOIN product_size_color_price AS pscp ON P.id = pscp.product_id
+            LEFT JOIN colors AS Cl ON pscp.color_id = Cl.id
+            LEFT JOIN sizes AS S ON pscp.size_id = S.id
+            WHERE P.id IN ($placeholders) AND P.active = 1
+            GROUP BY P.id, P.sku, P.name";
 
-                        if (!isset($pricing[$color][$sizeName])) {
-                            $invalid[] = ['id' => $id, 'designSignature' => $signature, 'size' => $sizeName, 'reason' => "Variante non disponible"];
-                            continue;
-                        }
+            try {
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($uniqueProductIds);
+                $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-                        $info = $pricing[$color][$sizeName];
-
-                        // Validation du Stock
-                        $stockVal = trim($info['stock']);
-                        if ($stockVal !== '-' && $stockVal !== '') {
-                            if ($qte > (int)$stockVal) {
-                                $invalid[] = ['id' => $id, 'designSignature' => $signature, 'size' => $sizeName, 'reason' => "Stock insuffisant ($stockVal restant)"];
+                foreach ($rows as $p) {
+                    $pricing = [];
+                    if (!empty($p['pricingData'])) {
+                        $entries = explode(',', $p['pricingData']);
+                        foreach ($entries as $entry) {
+                            $parts = explode(':', $entry);
+                            if (count($parts) === 4) {
+                                list($c, $s, $stock, $price) = $parts;
+                                $pricing[trim($c)][trim($s)] = [
+                                    'stock' => trim($stock),
+                                    'rawPrice' => (float)$price
+                                ];
                             }
                         }
                     }
+                    $lookup[$p['id']] = ['sku' => $p['sku'], 'pricing' => $pricing];
+                }
+            } catch (PDOException $e) {
+                error_log("SQL ERROR validateCartForPayment: " . $e->getMessage());
+                return ['success' => false, 'message' => "Erreur technique lors de la validation du paiement.", 'cart' => []];
+            }
+        }
+
+        // Validation du panier
+        $invalid = [];
+        foreach ($cartItems as $item) {
+            $id = $item['id'];
+            $signature = $item['designSignature'] ?? 'null';
+            $color = $item['color'] ?? '';
+            $suppId = $item['supplierId'] ?? ($item['supplier']['id'] ?? null);
+            $suppName = $item['supplier']['name'] ?? '';
+
+            $personalizationOption = $item['studioData']['selectedPersonalizationOption'] 
+                ?? $item['selectedPersonalizationOption'] 
+                ?? null;
+
+            $isDetails = false;
+            if (isset($item['sizes']) && is_array($item['sizes'])) {
+                foreach ($item['sizes'] as $s) {
+                    if (isset($s['size']) && ($s['size'] === 'Unité(s)')) {
+                        $isDetails = true;
+                        break;
+                    }
                 }
             }
 
-            if (!empty($invalid)) {
-                return ['success' => false, 'invalid_products' => $invalid];
+            // IGNORER la validation BDD si : Produit Sage OU Mode Personnalisé OU Produit Details
+            if ($suppId == 12 || strtolower($suppName) === 'sage' || $personalizationOption === "Personnalisé" || $isDetails) {
+                continue;
             }
 
-            return ['success' => true, 'cart' => $cartItems];
+            if (!isset($lookup[$id])) {
+                $invalid[] = ['id' => $id, 'designSignature' => $signature, 'reason' => "Produit inactif ou inexistant"];
+                continue;
+            }
 
-        } catch (PDOException $e) {
-            error_log("SQL ERROR validateCartForPayment: " . $e->getMessage());
-            return ['success' => false, 'message' => "Erreur technique lors de la validation du paiement."];
+            $pricing = $lookup[$id]['pricing'];
+
+            if (isset($item['sizes']) && is_array($item['sizes'])) {
+                foreach ($item['sizes'] as $sizeItem) {
+                    $sizeName = $sizeItem['size'];
+                    $qte = (int)$sizeItem['qte'];
+
+                    if (!isset($pricing[$color][$sizeName])) {
+                        $invalid[] = ['id' => $id, 'designSignature' => $signature, 'size' => $sizeName, 'reason' => "Variante non disponible"];
+                        continue;
+                    }
+
+                    $info = $pricing[$color][$sizeName];
+
+                    $stockVal = trim($info['stock']);
+                    if ($stockVal !== '-' && $stockVal !== '') {
+                        if ($qte > (int)$stockVal) {
+                            $invalid[] = ['id' => $id, 'designSignature' => $signature, 'size' => $sizeName, 'reason' => "Stock insuffisant ($stockVal restant)"];
+                        }
+                    }
+                }
+            }
         }
-    }
 
+        if (!empty($invalid)) {
+            return ['success' => false, 'message' => 'Des produits dans votre panier ne sont plus disponibles.', 'invalid_products' => $invalid, 'cart' => []];
+        }
+
+        return ['success' => true, 'cart' => $cartItems];
+    }
 
     // ---------------------------------------------------------
     // VALIDATE CART (VERSION JSON pour affichage)
     // ---------------------------------------------------------
+   // ---------------------------------------------------------
+    // VALIDATE CART (VERSION JSON pour affichage / validation AJAX)
+    // ---------------------------------------------------------
     public function validateCart($cartItems)
     {
-        $productIds = [];
-        foreach ($cartItems as $item) {
-            if (isset($item['id']) && is_numeric($item['id'])) {
-                $productIds[] = intval($item['id']);
-            }
-        }
-
-        $uniqueProductIds = array_values(array_unique(array_filter($productIds, fn($id) => $id > 0)));
-
-        if (empty($uniqueProductIds)) {
+        if (empty($cartItems) || !is_array($cartItems)) {
             echo json_encode(['success' => true, 'message' => 'Panier vide']);
             exit();
         }
 
-        $dbConnection = new Connection;
-        $pdo = $dbConnection->getPDO();
-        $pdo->exec("SET SESSION group_concat_max_len = 1000000;");
-
-        $placeholders = implode(',', array_fill(0, count($uniqueProductIds), '?'));
-
-        // On récupère les infos produits et le rawPrice par variante
-        $sql = "
-        SELECT P.id, P.sku, P.name,
-            GROUP_CONCAT(CONCAT(Cl.name, ':', S.name, ':', pscp.stock, ':', pscp.price)) AS pricingData
-        FROM products AS P
-        LEFT JOIN product_size_color_price AS pscp ON P.id = pscp.product_id
-        LEFT JOIN colors AS Cl ON pscp.color_id = Cl.id
-        LEFT JOIN sizes AS S ON pscp.size_id = S.id
-        WHERE P.id IN ($placeholders) AND P.active = 1
-        GROUP BY P.id, P.sku, P.name";
-
-        try {
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute($uniqueProductIds);
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            $lookup = [];
-            foreach ($rows as $p) {
-                $pricing = [];
-                if (!empty($p['pricingData'])) {
-                    $entries = explode(',', $p['pricingData']);
-                    foreach ($entries as $entry) {
-                        $parts = explode(':', $entry);
-                        if (count($parts) === 4) {
-                            list($c, $s, $stock, $price) = $parts;
-                            $pricing[trim($c)][trim($s)] = [
-                                'stock' => trim($stock),
-                                'rawPrice' => (float)$price
-                            ];
-                        }
+        // 1. Filtrer uniquement les ID des produits locaux (BDD)
+        $localProductIds = [];
+        foreach ($cartItems as $item) {
+            $suppId = $item['supplierId'] ?? ($item['supplier']['id'] ?? null);
+            $suppName = $item['supplier']['name'] ?? '';
+            
+            $isDetails = false;
+            if (isset($item['sizes']) && is_array($item['sizes'])) {
+                foreach ($item['sizes'] as $s) {
+                    if (isset($s['size']) && ($s['size'] === 'Unité(s)')) {
+                        $isDetails = true;
+                        break;
                     }
                 }
-                $lookup[$p['id']] = ['sku' => $p['sku'], 'pricing' => $pricing];
             }
 
-            // --- VALIDATION ---
-            $invalid = [];
-            foreach ($cartItems as $item) {
-                $id = $item['id'];
-                $signature = $item['designSignature'] ?? 'null';
-                $color = $item['color'] ?? '';
-
-                if (!isset($lookup[$id])) {
-                    $invalid[] = ['id' => $id, 'designSignature' => $signature, 'reason' => "Produit inactif"];
-                    continue;
+            // Uniquement si le produit appartient à votre BDD locale
+            if ($suppId != 12 && strtolower($suppName) !== 'sage' && !$isDetails) {
+                if (isset($item['id']) && is_numeric($item['id'])) {
+                    $localProductIds[] = intval($item['id']);
                 }
+            }
+        }
 
-                // Détection si l'article est en mode "Personnalisé"
-                $personalizationOption = $item['studioData']['selectedPersonalizationOption'] 
-                    ?? $item['selectedPersonalizationOption'] 
-                    ?? null;
+        $uniqueProductIds = array_values(array_unique(array_filter($localProductIds, fn($id) => $id > 0)));
 
-                // SI MODE "PERSONNALISÉ" : On saute les validations de variantes/prix/couleur
-                if ($personalizationOption === "Personnalisé") {
-                    continue;
+        $lookup = [];
+        if (!empty($uniqueProductIds)) {
+            $dbConnection = new Connection;
+            $pdo = $dbConnection->getPDO();
+            $pdo->exec("SET SESSION group_concat_max_len = 1000000;");
+
+            $placeholders = implode(',', array_fill(0, count($uniqueProductIds), '?'));
+
+            // On récupère les infos produits et le rawPrice par variante pour les produits BDD
+            $sql = "
+            SELECT P.id, P.sku, P.name,
+                GROUP_CONCAT(CONCAT(Cl.name, ':', S.name, ':', pscp.stock, ':', pscp.price)) AS pricingData
+            FROM products AS P
+            LEFT JOIN product_size_color_price AS pscp ON P.id = pscp.product_id
+            LEFT JOIN colors AS Cl ON pscp.color_id = Cl.id
+            LEFT JOIN sizes AS S ON pscp.size_id = S.id
+            WHERE P.id IN ($placeholders) AND P.active = 1
+            GROUP BY P.id, P.sku, P.name";
+
+            try {
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($uniqueProductIds);
+                $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                foreach ($rows as $p) {
+                    $pricing = [];
+                    if (!empty($p['pricingData'])) {
+                        $entries = explode(',', $p['pricingData']);
+                        foreach ($entries as $entry) {
+                            $parts = explode(':', $entry);
+                            if (count($parts) === 4) {
+                                list($c, $s, $stock, $price) = $parts;
+                                $pricing[trim($c)][trim($s)] = [
+                                    'stock' => trim($stock),
+                                    'rawPrice' => (float)$price
+                                ];
+                            }
+                        }
+                    }
+                    $lookup[$p['id']] = ['sku' => $p['sku'], 'pricing' => $pricing];
                 }
+            } catch (PDOException $e) {
+                echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+                exit();
+            }
+        }
 
-                $sku = $lookup[$id]['sku'];
-                $pricing = $lookup[$id]['pricing'];
+        // --- VALIDATION ---
+        $invalid = [];
+        foreach ($cartItems as $item) {
+            $id = $item['id'];
+            $signature = $item['designSignature'] ?? 'null';
+            $color = $item['color'] ?? '';
+            $suppId = $item['supplierId'] ?? ($item['supplier']['id'] ?? null);
+            $suppName = $item['supplier']['name'] ?? '';
 
+            $personalizationOption = $item['studioData']['selectedPersonalizationOption'] 
+                ?? $item['selectedPersonalizationOption'] 
+                ?? null;
+
+            $isDetails = false;
+            if (isset($item['sizes']) && is_array($item['sizes'])) {
+                foreach ($item['sizes'] as $s) {
+                    if (isset($s['size']) && ($s['size'] === 'Unité(s)')) {
+                        $isDetails = true;
+                        break;
+                    }
+                }
+            }
+
+            // SI MODE "PERSONNALISÉ", ARTICLE "DÉTAILS" OU PRODUIT "SAGE" :
+            // On valide immédiatement sans vérifier les déclinaisons BDD locales
+            if ($suppId == 12 || strtolower($suppName) === 'sage' || $personalizationOption === "Personnalisé" || $isDetails) {
+                continue;
+            }
+
+            if (!isset($lookup[$id])) {
+                $invalid[] = ['id' => $id, 'designSignature' => $signature, 'reason' => "Produit inactif ou inexistant"];
+                continue;
+            }
+
+            $sku = $lookup[$id]['sku'];
+            $pricing = $lookup[$id]['pricing'];
+
+            if (isset($item['sizes']) && is_array($item['sizes'])) {
                 foreach ($item['sizes'] as $sizeItem) {
                     $sizeName = $sizeItem['size'];
                     $clientPrice = (float)($sizeItem['price'] ?? 0);
@@ -1387,11 +1513,9 @@ public function validateCartForPayment($cartItems)
                     }
 
                     $dbRawPrice = $pricing[$color][$sizeName]['rawPrice'];
-
-                    // On calcule le prix attendu avec la même logique que JS
                     $expectedPrice = $this->calculateItemPricePHP($item, $cartItems, $dbRawPrice);
 
-                    // Validation avec une tolérance de 0.05$ pour les arrondis
+                    // Validation du prix avec tolérance de 0.05$
                     if (abs($clientPrice - $expectedPrice) > 0.05) {
                         $invalid[] = [
                             'id' => $id,
@@ -1402,15 +1526,11 @@ public function validateCartForPayment($cartItems)
                     }
                 }
             }
-
-            echo json_encode($invalid ? ['success' => true, 'invalid_products' => $invalid] : ['success' => true]);
-
-        } catch (PDOException $e) {
-            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
+
+        echo json_encode($invalid ? ['success' => true, 'invalid_products' => $invalid] : ['success' => true]);
         exit();
     }
-
 private function calculateItemPricePHP($currentItem, $allCartItems, $rawPrice) {
     // 1. Coût de base (Inversion de la marge 1.6)
     $initialCost = $rawPrice / 1.6;

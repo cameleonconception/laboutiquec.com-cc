@@ -725,6 +725,15 @@ height:fit-content;
     width:100%;    
     height: auto;
 }
+
+.slideshowContainer img,
+.side-thumbnail,
+.color-thumbnail-image {
+    /* Améliore le rendu lors du redimensionnement */
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+}
+
 .button-slideshow-container{
     position:absolute;
     width:100%;

@@ -40,6 +40,7 @@ try {
     $ROOTER->addViews('GET', '/api/GET/products', '/../controllers/api/GET/products.php', 'ALL', [], 'FALSE', 'FALSE', 'FALSE','FALSE');
     $ROOTER->addViews('GET', '/api/GET/sageProducts', '/../controllers/api/GET/sageProducts.php', 'ALL', [], 'FALSE', 'FALSE', 'FALSE','FALSE');
     $ROOTER->addViews('GET', '/api/GET/product-details', '/../controllers/api/GET/product-details.php', 'ALL', [], 'FALSE', 'FALSE', 'FALSE','FALSE');
+    $ROOTER->addViews('GET', '/api/GET/sage-product-details', '/../controllers/api/GET/sage-product-details.php', 'ALL', [], 'FALSE', 'FALSE', 'FALSE','FALSE');
     $ROOTER->addViews('POST', '/api/GET/user-info-for-payment', '/../controllers/api/GET/user-info-for-payment.php', 'ALL', [], 'FALSE', 'FALSE', 'FALSE','FALSE');
     $ROOTER->addViews('POST', '/api/GET/user-infos', '/../controllers/api/GET/user-infos.php', 'ALL', [], 'FALSE', 'FALSE', 'FALSE','FALSE');
     $ROOTER->addViews('POST', '/api/VALIDATE/cart', '/../controllers/api/VALIDATE/cart.php', 'ALL', [], 'FALSE', 'FALSE', 'FALSE','FALSE');

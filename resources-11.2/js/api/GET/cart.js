@@ -94,9 +94,9 @@ function updateCartItemDisplay(pid, color, personalizationValue, personalization
                         <div class="product-meta-detail">
                         </div>
                 ${generateStudioHTML(cartProduct, designData)}
-                ${(cartProduct.personalizationValue && cartProduct.personalizationValue !== 'Aucune personnalisation') ? `<span>Option : ${cartProduct.personalizationValue}</span>` : ''}
+                ${(cartProduct.personalizationValue && cartProduct.personalizationValue !== 'Aucune personnalisation') ? `<span>Note : ${cartProduct.personalizationValue}</span>` : ''}
                 ${sizesHtml}
-                ${cartProduct.personalizationValue !== 'Aucune personnalisation' ? `<p><strong>Option :</strong> ${cartProduct.personalizationValue}</p>` : ''}
+                ${cartProduct.personalizationValue !== 'Aucune personnalisation' ? `<p><strong>Note :</strong> ${cartProduct.personalizationValue}</p>` : ''}
 
                 <div class="cart-product-actions">
                     <button onclick="editProductCart('${cartProduct.id}', '${cartProduct.color}', '${cartProduct.personalizationValue}', '${cartProduct.personalizationPrice}', ${cleanSig !== 'null' ? `'${cleanSig}'` : 'null'})">Modifier</button> 
@@ -272,7 +272,7 @@ function getCart() {
                         </div>
                         ${generateStudioHTML(product, designData)}
                         ${sizesHtml}
-                        ${product.personalizationValue !== 'Aucune personnalisation' ? `<p><strong>Option :</strong> ${product.personalizationValue}</p>` : ''}
+                        ${product.personalizationValue !== 'Aucune personnalisation' ? `<p><strong>Note :</strong> ${product.personalizationValue}</p>` : ''}
 
                         <div class="cart-product-actions">
                             <button onclick="editProductCart('${product.id}', '${product.color}', '${product.personalizationValue}', '${product.personalizationPrice}', '${product.designSignature}')">Modifier</button> 
