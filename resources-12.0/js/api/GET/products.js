@@ -1,4 +1,6 @@
 window.lastLoadedProductsImgNames = {};
+let totalLoadedProducts = 0; // Compteur global de produits affichés
+
 
 async function translateText(text) {
     if (!text || typeof text !== 'string') return text;
@@ -64,6 +66,103 @@ function getProductImageUrl(imgNamesRaw, targetPrefix, targetPosition = 1) {
     return match ? match.fullName : null;
 }
 
+async function loadSageProducts(activePage, query, categoriesRaw, colorsRaw, productContainer) {
+    try {
+        const response = await fetch('./api/GET/sageProducts?page=' + activePage + '&query=' + query + '&categories=' + categoriesRaw + '&colors=' + colorsRaw);
+        const data = await response.json();
+
+        if (data && data.ok && Array.isArray(data.products) && data.products.length > 0) {
+            let sageProductsArray = data.products;
+
+            for (const product of sageProductsArray) {
+                // Retire un skeleton si présent pour faire de la place aux vraies cartes
+                const skeleton = productContainer.querySelector('.skeleton-card');
+                if (skeleton) skeleton.remove();
+
+                totalLoadedProducts++; // Compteur global
+
+                const baseSku = product.spc || product.prodEId;
+                const productName = await translateText(product.name) || ''; 
+                
+                let initialImageSrc = product.thumbPic || './static-resources/default/products/introuvable.webp';
+                
+                if (product.thumbPic) {
+                    initialImageSrc = product.thumbPic.replace(/RS=[^&]+/, 'RS=1800');
+                }
+
+                window.lastLoadedProductsImgNames[baseSku] = product.thumbPic ? [product.thumbPic] : [];
+
+                let formattedPrice = '';
+                if (product.prc) {
+                    const prices = product.prc.split('-').map(p => parseFloat(p.trim())).filter(p => !isNaN(p));
+                    if (prices.length > 0) {
+                        const lowest = (prices[0] / 1.6) * 1.3;
+                        formattedPrice = lowest.toFixed(2).replace('.', ',');
+                    }
+                }
+
+                const cardRedirectUrl = `./produits/details?eid=${product.prodEId}`;
+
+                const card = document.createElement('div');
+                card.className = `product-card`;
+                card.onclick = () => window.location.href = cardRedirectUrl;
+
+                card.innerHTML = `
+                    <div class="thumbnail-wrapper" data-sku="${baseSku}" data-real-sku="${baseSku}" data-prefix="thumbnail"> 
+                        <span class="product-tag-usine">Directement de l'usine</span>
+                        <div class="thumbnail-skeleton"></div> 
+                        <img id="img-${baseSku}" 
+                            class="product-image"
+                            src="${initialImageSrc}" 
+                            alt="Image du produit ${escapeHTML(productName)}"
+                            data-current-thumb="1"
+                            loading="lazy" 
+                            onload="this.classList.add('loaded'); if(this.previousElementSibling) this.previousElementSibling.style.display='none';" 
+                            onerror="this.src='./static-resources/default/products/introuvable.webp'; this.classList.add('loaded'); if(this.previousElementSibling) this.previousElementSibling.style.display='none';">
+                        
+                        <div class='thumb-nav-container' style="display:none;">
+                            <button class="thumb-nav thumb-prev disabled" onclick="switchThumbnailOnDemand('${baseSku}', -1); event.stopPropagation();">&lt;</button>
+                            <button class="thumb-nav thumb-next disabled" onclick="switchThumbnailOnDemand('${baseSku}', 1); event.stopPropagation();">&gt;</button>
+                        </div>
+                    </div>
+                    <div class="product-info-wrapper"></div>
+                    <div class="color-thumbnails-wrapper"></div>
+                `;
+
+                productContainer.appendChild(card);
+
+                setTimeout(() => {
+                    const infoWrapper = card.querySelector('.product-info-wrapper');
+                    if (infoWrapper) {
+                        infoWrapper.innerHTML = `
+                            <div class="product-info">
+                                <h3>${escapeHTML(productName)}</h3>
+                                <p>${baseSku}</p>
+                                <p style="display:none;">À partir de : ${formattedPrice} $</p>
+                            </div>
+                        `;
+                    }
+                }, 50);
+            }
+        }
+
+        // Nettoie tous les skeletons restants
+        productContainer.querySelectorAll('.skeleton-card').forEach(sk => sk.remove());
+
+        // Vérification finale uniquement lorsque le traitement Sage est entièrement fini
+        if (totalLoadedProducts === 0) {
+            showNoProductsMessage(productContainer);
+        }
+    } catch (error) {
+        console.error('Erreur lors du chargement des produits Sage:', error);
+        productContainer.querySelectorAll('.skeleton-card').forEach(sk => sk.remove());
+        if (totalLoadedProducts === 0) {
+            showNoProductsMessage(productContainer);
+        }
+    }
+}
+
+
 document.addEventListener('DOMContentLoaded', function() {
     let productContainer = document.getElementById('products-container');
     let filterSection = document.getElementById('filter-section');
@@ -80,8 +179,8 @@ document.addEventListener('DOMContentLoaded', function() {
     let categories = categoriesRaw ? categoriesRaw.split(",") : [];
     let colors = colorsRaw ? colorsRaw.split(",") : [];
 
-    let totalLoadedProducts = 0; // Compteur global de produits affichés
 
+    // --- 1. CHARGEMENT DE VOS PRODUITS (PRIORITAIRES) ---
     // --- 1. CHARGEMENT DE VOS PRODUITS (PRIORITAIRES) ---
     fetch('./api/GET/products?page=' + activePage +'&query='+query+'&categories='+categoriesRaw+'&colors='+colorsRaw)
         .then(response => response.json())
@@ -205,7 +304,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
 
-                productContainer.innerHTML = '';
+                // Si des produits locaux existent, on vide les skeletons initiaux
+                if (productsArray.length > 0) {
+                    productContainer.innerHTML = '';
+                }
 
                 // Rendu des produits internes
                 productsArray.forEach(product => {
@@ -315,99 +417,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     generatePagination(data.totalProducts, activePage);
                     initInfiniteScroll(activePage, data.totalProducts);
                 }
-            } else {
-                productContainer.innerHTML = '';
             }
 
-            // --- 2. APRES VOS PRODUITS, ON FETCH ET AJOUTE LES PRODUITS SAGE ---
-            return fetch('./api/GET/sageProducts?page=' + activePage +'&query='+query+'&categories='+categoriesRaw+'&colors='+colorsRaw);
-    })
-    .then(response => response ? response.json() : null)
-    .then(async data => { // 1. Ajout de "async" ici
-        if (data && data.ok && Array.isArray(data.products)) {
-            let sageProductsArray = data.products;
-
-            // 2. Remplacement de forEach par une boucle for...of qui supporte await
-            for (const product of sageProductsArray) {
-                totalLoadedProducts++; // Incrémente le compteur
-
-                const baseSku = product.spc || product.prodEId;
-                
-                // 3. Le await fonctionne maintenant correctement !
-                const productName = await translateText(product.name) || ''; 
-                
-                let initialImageSrc = product.thumbPic || './static-resources/default/products/introuvable.webp';
-                
-                if (product.thumbPic) {
-                    initialImageSrc = product.thumbPic.replace(/RS=[^&]+/, 'RS=1800');
-                }
-
-                window.lastLoadedProductsImgNames[baseSku] = product.thumbPic ? [product.thumbPic] : [];
-
-                let formattedPrice = '';
-                if (product.prc) {
-                    const prices = product.prc.split('-').map(p => parseFloat(p.trim())).filter(p => !isNaN(p));
-                    if (prices.length > 0) {
-                        const lowest = (prices[0] / 1.6) * 1.3;
-                        formattedPrice = lowest.toFixed(2).replace('.', ',');
-                    }
-                }
-
-                const cardRedirectUrl = `./produits/details?eid=${product.prodEId}`;
-
-                const card = document.createElement('div');
-                card.className = `product-card`;
-                card.onclick = () => window.location.href = cardRedirectUrl;
-
-                card.innerHTML = `
-                    <div class="thumbnail-wrapper" data-sku="${baseSku}" data-real-sku="${baseSku}" data-prefix="thumbnail"> 
-                        <span class="product-tag-usine">Directement de l'usine</span>
-                        <div class="thumbnail-skeleton"></div> 
-                        <img id="img-${baseSku}" 
-                            class="product-image"
-                            src="${initialImageSrc}" 
-                            alt="Image du produit ${escapeHTML(productName)}"
-                            data-current-thumb="1"
-                            loading="lazy" 
-                            onload="this.classList.add('loaded'); if(this.previousElementSibling) this.previousElementSibling.style.display='none';" 
-                            onerror="this.src='./static-resources/default/products/introuvable.webp'; this.classList.add('loaded'); if(this.previousElementSibling) this.previousElementSibling.style.display='none';">
-                        
-                        <div class='thumb-nav-container' style="display:none;">
-                            <button class="thumb-nav thumb-prev disabled" onclick="switchThumbnailOnDemand('${baseSku}', -1); event.stopPropagation();">&lt;</button>
-                            <button class="thumb-nav thumb-next disabled" onclick="switchThumbnailOnDemand('${baseSku}', 1); event.stopPropagation();">&gt;</button>
-                        </div>
-                    </div>
-                    <div class="product-info-wrapper"></div>
-                    <div class="color-thumbnails-wrapper"></div>
-                `;
-
-                productContainer.appendChild(card);
-
-                setTimeout(() => {
-                    const infoWrapper = card.querySelector('.product-info-wrapper');
-                    if (infoWrapper) {
-                        infoWrapper.innerHTML = `
-                            <div class="product-info">
-                                <h3>${escapeHTML(productName)}</h3>
-                                <p>${baseSku}</p>
-                                <p style="display:none;">À partir de : ${formattedPrice} $</p>
-                            </div>
-                        `;
-                    }
-                }, 50);
-            }
-        }
-
-        // Vérification finale si aucun produit n'a été trouvé
-        if (totalLoadedProducts === 0) {
-            showNoProductsMessage(productContainer);
-        }
-    })
+            // --- 2. APRES VOS PRODUITS, ON CHARGE LES PRODUITS SAGE ---
+            loadSageProducts(activePage, query, categoriesRaw, colorsRaw, productContainer);
+        })
         .catch(error => {
-            console.error('Erreur lors du chargement des produits:', error);
-            if (totalLoadedProducts === 0) {
-                showNoProductsMessage(productContainer);
-            }
+            console.error('Erreur lors du chargement des produits locaux:', error);
+            loadSageProducts(activePage, query, categoriesRaw, colorsRaw, productContainer);
         });
 });
 
