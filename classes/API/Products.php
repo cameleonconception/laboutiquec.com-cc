@@ -494,7 +494,31 @@ public function getProducts($page, $query, $categories, $colors) {
     $allSizes = $pdo->query("SELECT DISTINCT S_size.id, S_size.name FROM sizes S_size JOIN product_size_color_price pscp ON S_size.id = pscp.size_id JOIN products P ON pscp.product_id = P.id WHERE $baseWhereRole ORDER BY S_size.name ASC")->fetchAll(PDO::FETCH_ASSOC);
     $allSuppliers = $pdo->query("SELECT id, name, shippingCost, freeShippingAt FROM suppliers ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
 
+    // -------------------------------------------------------------------------
+    // BUCLE SUR LES ITEMS SAGE ET INTEGRATION DANS $allCategories
+    // -------------------------------------------------------------------------
+    $sageItems = $this->fetchSageCategoriesData();
+    if (!empty($sageItems)) {
+        // Tableau de comparaison en minuscules pour éviter les doublons avec la BDD locale
+        $existingNames = array_map(fn($c) => mb_strtolower(trim($c['name'])), $allCategories);
 
+        foreach ($sageItems as $item) {
+            if (isset($item['name']) && !empty(trim($item['name']))) {
+                $categoryName = trim($item['name']);
+
+                if (!in_array(mb_strtolower($categoryName), $existingNames)) {
+                    $allCategories[] = [
+                        'id'   => $item['id'] ?? ('sage_' . md5($categoryName)),
+                        'name' => $categoryName
+                    ];
+                    $existingNames[] = mb_strtolower($categoryName);
+                }
+            }
+        }
+
+        // Tri alphabétique final de l'ensemble des catégories
+        usort($allCategories, fn($a, $b) => strcoll($a['name'], $b['name']));
+    }
 
     echo json_encode([
         'success'           => true,
@@ -510,12 +534,66 @@ public function getProducts($page, $query, $categories, $colors) {
     exit();
 }
 
+/**
+ * Helper privé pour exécuter la requête cURL vers Sage et retourner le tableau d'items
+ */
+private function fetchSageCategoriesData(): array
+{
+    try {
+        $url = "https://www.promoplace.com/ws/ws.dll/ConnectAPI";
+
+        $data = [
+            "serviceId" => 101,
+            "apiVer" => 130,
+            "auth" => [
+                "acctId"  => getenv('SAGE_ACCT_ID')  ?: ($_ENV['SAGE_ACCT_ID']  ?? ''),
+                "loginId" => getenv('SAGE_LOGIN_ID') ?: ($_ENV['SAGE_LOGIN_ID'] ?? ''),
+                "key"     => getenv('SAGE_AUTH_KEY')  ?: ($_ENV['SAGE_AUTH_KEY']  ?? '')
+            ],
+            "listType" => "categories"
+        ];
+
+        $jsonData = json_encode($data);
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonData);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Content-Length: ' . strlen($jsonData)
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode === 200 && $response) {
+            $decoded = json_decode($response, true);
+            if (is_array($decoded) && isset($decoded['items']) && is_array($decoded['items'])) {
+                return $decoded['items'];
+            }
+        }
+    } catch (\Throwable $e) {
+        error_log("Erreur lors de la récupération des catégories Sage : " . $e->getMessage());
+    }
+
+    return [];
+}
+
 
 
 private function translateToEnglish(string $text): string
 {
     if (empty(trim($text))) {
         return $text;
+    }
+
+    // Supprime les accents (ex: "Éléphant" -> "Elephant")
+    $transliterator = \Transliterator::create('NFD; [:Nonspacing Mark:] Remove; NFC;');
+    if ($transliterator !== false) {
+        $text = $transliterator->transliterate($text);
     }
 
     try {
@@ -529,6 +607,7 @@ private function translateToEnglish(string $text): string
         return $text;
     }
 }
+
 
 public function getSageProducts($page, $query)
 {
@@ -550,8 +629,8 @@ public function getSageProducts($page, $query)
             "search" => [
                 "quickSearch" => $translatedQuery,
                 //"siteCountry" => "CA",
-                "verified" => 1,
-                "popular" => 1,
+                //"verified" => 1,
+                //"popular" => 1,
             ]
         ];
 
@@ -693,7 +772,7 @@ public function getSageProductDetails($eid)
                 'description' => $description,
                 'sku' => $sku,
                 'id' => $id,
-                'raw'         => $product
+                //'raw'         => $product
             ]
         ]);
         exit;

@@ -1,5 +1,23 @@
 window.lastLoadedProductsImgNames = {};
 
+async function translateText(text) {
+    if (!text || typeof text !== 'string') return text;
+    try {
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=fr&dt=t&q=${encodeURIComponent(text)}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        // Recompose le texte si le résultat est découpé en plusieurs segments
+        if (data && data[0]) {
+            return data[0].map(segment => segment[0]).join('');
+        }
+        return text;
+    } catch (e) {
+        console.error("Erreur de traduction Google :", e);
+        return text;
+    }
+}
+
 function parseImageFilename(fileName) {
     if (!fileName || typeof fileName !== 'string') {
         return { prefix: "", position: 0, timestamp: 0, fullName: "" };
@@ -303,84 +321,88 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // --- 2. APRES VOS PRODUITS, ON FETCH ET AJOUTE LES PRODUITS SAGE ---
             return fetch('./api/GET/sageProducts?page=' + activePage +'&query='+query+'&categories='+categoriesRaw+'&colors='+colorsRaw);
-        })
-        .then(response => response ? response.json() : null)
-        .then(data => {
-            if (data && data.ok && Array.isArray(data.products)) {
-                let sageProductsArray = data.products;
+    })
+    .then(response => response ? response.json() : null)
+    .then(async data => { // 1. Ajout de "async" ici
+        if (data && data.ok && Array.isArray(data.products)) {
+            let sageProductsArray = data.products;
 
-                sageProductsArray.forEach(product => {
-                    totalLoadedProducts++; // Incrémente le compteur
+            // 2. Remplacement de forEach par une boucle for...of qui supporte await
+            for (const product of sageProductsArray) {
+                totalLoadedProducts++; // Incrémente le compteur
 
-                    const baseSku = product.spc || product.prodEId;
-                    const productName = product.name || '';
-                    let initialImageSrc = product.thumbPic || './static-resources/default/products/introuvable.webp';
-                    
-                    if (product.thumbPic) {
-                        initialImageSrc = product.thumbPic.replace(/RS=[^&]+/, 'RS=1800');
+                const baseSku = product.spc || product.prodEId;
+                
+                // 3. Le await fonctionne maintenant correctement !
+                const productName = await translateText(product.name) || ''; 
+                
+                let initialImageSrc = product.thumbPic || './static-resources/default/products/introuvable.webp';
+                
+                if (product.thumbPic) {
+                    initialImageSrc = product.thumbPic.replace(/RS=[^&]+/, 'RS=1800');
+                }
+
+                window.lastLoadedProductsImgNames[baseSku] = product.thumbPic ? [product.thumbPic] : [];
+
+                let formattedPrice = '';
+                if (product.prc) {
+                    const prices = product.prc.split('-').map(p => parseFloat(p.trim())).filter(p => !isNaN(p));
+                    if (prices.length > 0) {
+                        const lowest = (prices[0] / 1.6) * 1.3;
+                        formattedPrice = lowest.toFixed(2).replace('.', ',');
                     }
+                }
 
-                    window.lastLoadedProductsImgNames[baseSku] = product.thumbPic ? [product.thumbPic] : [];
+                const cardRedirectUrl = `./produits/details?eid=${product.prodEId}`;
 
-                    let formattedPrice = '';
-                    if (product.prc) {
-                        const prices = product.prc.split('-').map(p => parseFloat(p.trim())).filter(p => !isNaN(p));
-                        if (prices.length > 0) {
-                            const lowest = (prices[0] / 1.6) * 1.3;
-                            formattedPrice = lowest.toFixed(2).replace('.', ',');
-                        }
-                    }
+                const card = document.createElement('div');
+                card.className = `product-card`;
+                card.onclick = () => window.location.href = cardRedirectUrl;
 
-                    const cardRedirectUrl = `./produits/details?eid=${product.prodEId}`;
-
-                    const card = document.createElement('div');
-                    card.className = `product-card`;
-                    card.onclick = () => window.location.href = cardRedirectUrl;
-
-                    card.innerHTML = `
-                        <div class="thumbnail-wrapper" data-sku="${baseSku}" data-real-sku="${baseSku}" data-prefix="thumbnail"> 
-                            <span class="product-tag-usine">Directement de l'usine</span>
-                            <div class="thumbnail-skeleton"></div> 
-                            <img id="img-${baseSku}" 
-                                class="product-image"
-                                src="${initialImageSrc}" 
-                                alt="Image du produit ${escapeHTML(productName)}"
-                                data-current-thumb="1"
-                                loading="lazy" 
-                                onload="this.classList.add('loaded'); if(this.previousElementSibling) this.previousElementSibling.style.display='none';" 
-                                onerror="this.src='./static-resources/default/products/introuvable.webp'; this.classList.add('loaded'); if(this.previousElementSibling) this.previousElementSibling.style.display='none';">
-                            
-                            <div class='thumb-nav-container' style="display:none;">
-                                <button class="thumb-nav thumb-prev disabled" onclick="switchThumbnailOnDemand('${baseSku}', -1); event.stopPropagation();">&lt;</button>
-                                <button class="thumb-nav thumb-next disabled" onclick="switchThumbnailOnDemand('${baseSku}', 1); event.stopPropagation();">&gt;</button>
-                            </div>
+                card.innerHTML = `
+                    <div class="thumbnail-wrapper" data-sku="${baseSku}" data-real-sku="${baseSku}" data-prefix="thumbnail"> 
+                        <span class="product-tag-usine">Directement de l'usine</span>
+                        <div class="thumbnail-skeleton"></div> 
+                        <img id="img-${baseSku}" 
+                            class="product-image"
+                            src="${initialImageSrc}" 
+                            alt="Image du produit ${escapeHTML(productName)}"
+                            data-current-thumb="1"
+                            loading="lazy" 
+                            onload="this.classList.add('loaded'); if(this.previousElementSibling) this.previousElementSibling.style.display='none';" 
+                            onerror="this.src='./static-resources/default/products/introuvable.webp'; this.classList.add('loaded'); if(this.previousElementSibling) this.previousElementSibling.style.display='none';">
+                        
+                        <div class='thumb-nav-container' style="display:none;">
+                            <button class="thumb-nav thumb-prev disabled" onclick="switchThumbnailOnDemand('${baseSku}', -1); event.stopPropagation();">&lt;</button>
+                            <button class="thumb-nav thumb-next disabled" onclick="switchThumbnailOnDemand('${baseSku}', 1); event.stopPropagation();">&gt;</button>
                         </div>
-                        <div class="product-info-wrapper"></div>
-                        <div class="color-thumbnails-wrapper"></div>
-                    `;
+                    </div>
+                    <div class="product-info-wrapper"></div>
+                    <div class="color-thumbnails-wrapper"></div>
+                `;
 
-                    productContainer.appendChild(card);
+                productContainer.appendChild(card);
 
-                    setTimeout(() => {
-                        const infoWrapper = card.querySelector('.product-info-wrapper');
-                        if (infoWrapper) {
-                            infoWrapper.innerHTML = `
-                                <div class="product-info">
-                                    <h3>${escapeHTML(productName)}</h3>
-                                    <p>${baseSku}</p>
-                                    <p style="display:none;">À partir de : ${formattedPrice} $</p>
-                                </div>
-                            `;
-                        }
-                    }, 50);
-                });
+                setTimeout(() => {
+                    const infoWrapper = card.querySelector('.product-info-wrapper');
+                    if (infoWrapper) {
+                        infoWrapper.innerHTML = `
+                            <div class="product-info">
+                                <h3>${escapeHTML(productName)}</h3>
+                                <p>${baseSku}</p>
+                                <p style="display:none;">À partir de : ${formattedPrice} $</p>
+                            </div>
+                        `;
+                    }
+                }, 50);
             }
+        }
 
-            // Vérification finale si aucun produit n'a été trouvé
-            if (totalLoadedProducts === 0) {
-                showNoProductsMessage(productContainer);
-            }
-        })
+        // Vérification finale si aucun produit n'a été trouvé
+        if (totalLoadedProducts === 0) {
+            showNoProductsMessage(productContainer);
+        }
+    })
         .catch(error => {
             console.error('Erreur lors du chargement des produits:', error);
             if (totalLoadedProducts === 0) {
