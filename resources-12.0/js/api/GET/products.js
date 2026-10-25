@@ -789,17 +789,17 @@ function addNewCategoryBadge(value, type) {
   const checkbox = Array.from(
     document.querySelectorAll('input[type="checkbox"]'),
   ).find((input) => {
-    if (type === "themes") {
+    if (type === "categories" || type === "themes") {
       return (
         input.dataset.type === "categories" &&
-        input.dataset.param === "theme" &&
+        input.dataset.param === (type === "themes" ? "theme" : "categorie") &&
         (input.dataset.en === value || input.dataset.name === value)
       );
     }
     return input.dataset.type === type && input.dataset.name === value;
   });
   const displayValue =
-    type === "themes" && checkbox ?
+    (type === "categories" || type === "themes") && checkbox ?
       checkbox.dataset.name || value
     : value;
   badgeDiv.innerHTML = `${imageHtml}<span>${escapeHTML(displayValue)}</span><button type="button" class="deleteBtn">x</button>`;

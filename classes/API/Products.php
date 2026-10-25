@@ -253,7 +253,7 @@ class Products
             return ['success' => false, 'message' => 'Erreur : ' . $e->getMessage()];
         }
     }
-public function getProducts($page, $query, $categories, $colors) {
+public function getProducts($page, $query, $categories, $colors, $themes = []) {
     $profile = new Profile();
     $userId = $profile->getUserInfo_id();
     
@@ -285,7 +285,32 @@ public function getProducts($page, $query, $categories, $colors) {
     // Nettoyage des paramètres d'entrée
     $categoriesClean = is_array($categories) ? array_filter($categories, fn($c) => trim($c) !== '') : [];
     $colorsClean = is_array($colors) ? array_filter($colors, fn($c) => trim($c) !== '') : [];
+    $themesClean = is_array($themes) ? array_filter($themes, fn($theme) => trim($theme) !== '') : [];
     $queryClean = trim((string)$query);
+
+    // Les produits locaux n'ont pas de champ thème : une catégorie locale
+    // peut toutefois correspondre à un thème Sage sélectionné.
+    $themeCategoryNames = $themesClean;
+    $themesJsonPath = 'controllers/json/sageThemes.json';
+    if (!empty($themesClean) && file_exists($themesJsonPath)) {
+        $themesData = json_decode(file_get_contents($themesJsonPath), true);
+        $sageThemes = $themesData['items'] ?? $themesData['sageThemes'] ?? [];
+        if (is_array($sageThemes)) {
+            $selectedThemes = array_map('mb_strtolower', $themesClean);
+            foreach ($sageThemes as $sageTheme) {
+                $englishName = trim($sageTheme['en_name'] ?? '');
+                if ($englishName !== '' && in_array(mb_strtolower($englishName), $selectedThemes, true)) {
+                    foreach ([$englishName, trim($sageTheme['fr_name'] ?? '')] as $themeName) {
+                        if ($themeName !== '') {
+                            $themeCategoryNames[] = $themeName;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    $themeCategoryNames = array_unique($themeCategoryNames);
+    $categoriesForSearch = array_unique(array_merge($categoriesClean, $themeCategoryNames));
 
     // -------------------------------------------------------------------------
     // DÉTECTION DES CATÉGORIES ET COULEURS PROCHES VIA LA RECHERCHE (LIKE)
@@ -305,7 +330,7 @@ public function getProducts($page, $query, $categories, $colors) {
         $detectedColors = $stmtCol->fetchAll(PDO::FETCH_COLUMN);
     }
 
-    $allCategoriesToSearch = array_unique(array_merge($categoriesClean, $detectedCategories));
+    $allCategoriesToSearch = array_unique(array_merge($categoriesForSearch, $detectedCategories));
     $allColorsToSearch = array_unique(array_merge($colorsClean, $detectedColors));
 
     // -------------------------------------------------------------------------
@@ -368,8 +393,8 @@ public function getProducts($page, $query, $categories, $colors) {
             $params[] = $catName; 
         }
 
-        if (!empty($categoriesClean)) {
-            $catListSql = "'" . implode("','", array_map('addslashes', $categoriesClean)) . "'";
+        if (!empty($categoriesForSearch)) {
+            $catListSql = "'" . implode("','", array_map('addslashes', $categoriesForSearch)) . "'";
             $scoreCalculations[] = "IF(P.id IN (SELECT pc.product_id FROM product_category pc JOIN categories C ON pc.category_id = C.id WHERE C.name IN ($catListSql)), 50, 0)";
         }
 
@@ -635,132 +660,90 @@ private function translateToEnglish(string $text): string
 
 public function getSageProducts($page = 1, $query = '', $categories = [], $themes = [], $colors = [])
 {
-    // 1. Normalisation et traduction des catégories reçues en anglais
+    // 1. Normalisation et traduction des catégories
     $categoriesArray = is_array($categories) ? $categories : explode(',', (string)$categories);
     $categoriesList = array_filter(array_map('trim', $categoriesArray));
     $translatedCategories = [];
     foreach ($categoriesList as $cat) {
         $translatedCategories[] = $this->translateToEnglish($cat);
     }
-    // Chaîne de caractères délimitée par des virgules
     $categoriesString = !empty($translatedCategories) ? implode(',', $translatedCategories) : '';
 
-    // 2. Normalisation et traduction des thèmes reçus en anglais
+    // 2. Normalisation et traduction des thèmes
     $themesArray = is_array($themes) ? $themes : explode(',', (string)$themes);
     $themesList = array_filter(array_map('trim', $themesArray));
-    $translatedThemes = [];
-    foreach ($themesList as $th) {
-        $translatedThemes[] = $this->translateToEnglish($th);
-    }
-    // Chaîne de caractères délimitée par des virgules
-    $themesString = !empty($translatedThemes) ? implode(',', $translatedThemes) : '';
+    $themesString = implode(',', $themesList);
 
-    // 3. Normalisation et traduction des couleurs en anglais
+    // 3. Normalisation et traduction des couleurs
     $colorsArray = is_array($colors) ? $colors : explode(',', (string)$colors);
     $colorsList = array_filter(array_map('trim', $colorsArray));
     $translatedColors = [];
     foreach ($colorsList as $color) {
         $translatedColors[] = $this->translateToEnglish($color);
     }
-    // Chaîne de caractères délimitée par des virgules
     $colorsString = !empty($translatedColors) ? implode(',', $translatedColors) : '';
 
-    // 4. Détermination de la valeur de quickSearch selon la logique de priorité
-    $quickSearchValue = '';
+    // 4. Recherche textuelle
     $cleanQuery = trim((string)$query);
+    $quickSearchValue = $cleanQuery !== '' ? $this->translateToEnglish($cleanQuery) : '';
 
-    if (!empty($cleanQuery)) {
-        // Priorité 1 : Requête textuelle
-        $quickSearchValue = $this->translateToEnglish($cleanQuery);
-    } elseif (!empty($translatedCategories)) {
-        // Priorité 2 : 1ère catégorie en anglais
-        $quickSearchValue = implode(' OR ', $translatedCategories);
-    } elseif (!empty($translatedThemes)) {
-        // Priorité 3 : 1er thème en anglais
-        $quickSearchValue = implode(' OR ', $translatedThemes);
-    } else {
-        // Priorité 4 : Fallback
-        $quickSearchValue = "product";
+    $url = "https://www.promoplace.com/ws/ws.dll/ConnectAPI";
+
+    // Garder les champs de recherche identiques au format attendu par Sage, même vides.
+    $searchPayload = [
+        "sort"              => "POPULARITY",
+        "verify"            => 1,
+        "extraReturnFields" => "COLORS",
+        "quickSearch"       => $quickSearchValue,
+        "categories"        => $categoriesString
+    ];
+    if (!empty($themesString)) {
+        $searchPayload["themes"] = $themesString;
+    }
+    if (!empty($colorsString)) {
+        $searchPayload["colors"] = $colorsString;
+    }
+    if ($page > 1) {
+        $searchPayload["page"] = (int)$page;
     }
 
-    $open = true;
-    if ($open) {
-        $url = "https://www.promoplace.com/ws/ws.dll/ConnectAPI";
+    $data = [
+        "serviceId" => 103,
+        "apiVer"    => 130,
+        "auth"      => [
+            "acctId"  => getenv('SAGE_ACCT_ID')  ?: ($_ENV['SAGE_ACCT_ID']  ?? '272296'),
+            "loginId" => getenv('SAGE_LOGIN_ID') ?: ($_ENV['SAGE_LOGIN_ID'] ?? 'System'),
+            "key"     => getenv('SAGE_AUTH_KEY')  ?: ($_ENV['SAGE_AUTH_KEY']  ?? 'ff2a459cc459f1acbec11268a1e24c57')
+        ],
+        "search"    => $searchPayload
+    ];
 
-        // Construction du payload de recherche
-        $searchPayload = [
-            "quickSearch"       => $quickSearchValue,
-            "sort"              => "POPULARITY",
-            "verify"            => 1,
-            "extraReturnFields" => "COLORS"
-        ];
+    $jsonData = json_encode($data);
 
-        // Pagination
-        if ($page > 1) {
-            $searchPayload["page"] = (int)$page;
-        }
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonData);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json',
+        'Content-Length: ' . strlen($jsonData)
+    ]);
 
-        // Catégories sous forme de chaîne de caractères délimitée par des virgules
-        if (!empty($categoriesString)) {
-            $searchPayload["categories"] = $categoriesString;
-        }
+    $response = curl_exec($ch);
+    $error    = curl_error($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
 
-        // Thèmes sous forme de chaîne de caractères délimitée par des virgules
-        if (!empty($themesString)) {
-            $searchPayload["themes"] = $themesString;
-        }
-
-        // Couleurs sous forme de chaîne de caractères délimitée par des virgules
-        if (!empty($colorsString)) {
-            $searchPayload["colors"] = $colorsString;
-        }
-
-        $data = [
-            "serviceId" => 103,
-            "apiVer"    => 130,
-            "auth"      => [
-                "acctId"  => getenv('SAGE_ACCT_ID')  ?: ($_ENV['SAGE_ACCT_ID']  ?? '272296'),
-                "loginId" => getenv('SAGE_LOGIN_ID') ?: ($_ENV['SAGE_LOGIN_ID'] ?? 'System'),
-                "key"     => getenv('SAGE_AUTH_KEY')  ?: ($_ENV['SAGE_AUTH_KEY']  ?? 'ff2a459cc459f1acbec11268a1e24c57')
-            ],
-            "search"    => $searchPayload
-        ];
-
-        $jsonData = json_encode($data);
-
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonData);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json',
-            'Content-Length: ' . strlen($jsonData)
-        ]);
-
-        $response = curl_exec($ch);
-        $error    = curl_error($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-        curl_close($ch);
-
-        if ($error) {
-            http_response_code(500);
-            echo json_encode(["ok" => false, "error" => "Erreur cURL : " . $error]);
-            exit;
-        }
-
-        if ($httpCode !== 200) {
-            http_response_code($httpCode);
-            echo json_encode(["ok" => false, "error" => "Erreur API Sage (HTTP $httpCode)", "details" => $response]);
-            exit;
-        }
-
-        header('Content-Type: application/json; charset=utf-8');
-        echo $response; 
+    if ($error) {
+        http_response_code(500);
+        echo json_encode(["ok" => false, "error" => "Erreur cURL : " . $error]);
         exit;
     }
-}
 
+    header('Content-Type: application/json; charset=utf-8');
+    echo $response;
+    exit;
+}
 public function getSageProductDetails($eid)
 {
     // Définir l'en-tête JSON immédiatement
@@ -2451,8 +2434,3 @@ public function deleteColorImage($fileName) {
 }
 
 }
-
-
-
-
-

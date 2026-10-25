@@ -1,5 +1,5 @@
 <?php
-
+//var_dump($_SERVER['QUERY_STRING'], $_SERVER['REQUEST_URI'], $_GET);
 require_once('classes/API/Products.php');
 
 $page = isset($_GET['page']) ? intval($_GET['page']) : 1;
