@@ -55,6 +55,29 @@ function getProductImageUrl(imgNamesRaw, targetPrefix, targetPosition = 1) {
   return match ? match.fullName : null;
 }
 
+const sageProductNameTranslations = new Map();
+
+async function translateSageProductName(name) {
+  if (!name || sageProductNameTranslations.has(name)) {
+    return sageProductNameTranslations.get(name) || name;
+  }
+
+  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=fr&dt=t&q=${encodeURIComponent(name)}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`La traduction du nom Sage a échoué (HTTP ${response.status}).`);
+  }
+
+  const data = await response.json();
+  const translatedName =
+    Array.isArray(data?.[0]) ?
+      data[0].map((segment) => segment[0]).join("")
+    : name;
+
+  sageProductNameTranslations.set(name, translatedName);
+  return translatedName;
+}
+
 async function loadSageProducts(
   activePage,
   query,
@@ -80,6 +103,7 @@ async function loadSageProducts(
       data.products.length > 0
     ) {
       let sageProductsArray = data.products;
+      const sageNameTargets = [];
 
       for (const product of sageProductsArray) {
         const skeleton = productContainer.querySelector(".skeleton-card");
@@ -143,18 +167,33 @@ async function loadSageProducts(
 
         productContainer.appendChild(card);
 
-        setTimeout(() => {
-          const infoWrapper = card.querySelector(".product-info-wrapper");
-          if (infoWrapper) {
-            infoWrapper.innerHTML = `
+        const infoWrapper = card.querySelector(".product-info-wrapper");
+        if (infoWrapper) {
+          infoWrapper.innerHTML = `
                 <div class="product-info">
-                    <h3>${escapeHTML(productName)}</h3>
+                    <h3 class="sage-product-name">${escapeHTML(productName)}</h3>
                     <p>${baseSku}</p>
                     <p style="display:none;">À partir de : ${formattedPrice} $</p>
                 </div>
             `;
+          sageNameTargets.push({
+            name: productName,
+            heading: infoWrapper.querySelector(".sage-product-name"),
+            image: card.querySelector(".product-image"),
+          });
+        }
+      }
+
+      for (const target of sageNameTargets) {
+        try {
+          const translatedName = await translateSageProductName(target.name);
+          if (target.heading) target.heading.textContent = translatedName;
+          if (target.image) {
+            target.image.alt = `Image du produit ${translatedName}`;
           }
-        }, 50);
+        } catch (error) {
+          console.error("Erreur lors de la traduction du nom Sage:", error);
+        }
       }
     }
 
