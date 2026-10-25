@@ -787,6 +787,93 @@ private function writeSageProductsCache(string $cachePath, array $response): voi
     }
 }
 
+private function getMostUsedSageProductsSearch(?string $usagePath = null): ?array
+{
+    $usagePath = $usagePath ?? (
+        dirname(__DIR__, 2)
+        . DIRECTORY_SEPARATOR . 'controllers'
+        . DIRECTORY_SEPARATOR . 'json'
+        . DIRECTORY_SEPARATOR . 'sage'
+        . DIRECTORY_SEPARATOR . 'usage.json'
+    );
+    if (!is_file($usagePath)) {
+        return null;
+    }
+
+    $usageFile = @fopen($usagePath, 'rb');
+    if ($usageFile === false) {
+        error_log('Impossible de lire le journal d’utilisation Sage : ' . $usagePath);
+        return null;
+    }
+    if (!flock($usageFile, LOCK_SH)) {
+        fclose($usageFile);
+        error_log('Impossible de verrouiller le journal d’utilisation Sage : ' . $usagePath);
+        return null;
+    }
+
+    $contents = stream_get_contents($usageFile);
+    flock($usageFile, LOCK_UN);
+    fclose($usageFile);
+
+    if ($contents === false) {
+        error_log('Impossible de lire le contenu du journal Sage : ' . $usagePath);
+        return null;
+    }
+
+    $usageData = json_decode($contents, true);
+    if (!is_array($usageData) || !isset($usageData['queries']) || !is_array($usageData['queries'])) {
+        error_log('Journal d’utilisation Sage JSON invalide : ' . $usagePath);
+        return null;
+    }
+
+    $mostUsedSearch = null;
+    $highestCount = 0;
+    $mostRecentUse = 0;
+    foreach ($usageData['queries'] as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+
+        $categories = $entry['categories'] ?? [];
+        $themes = $entry['themes'] ?? [];
+        $colors = $entry['colors'] ?? [];
+        $query = trim((string)($entry['query'] ?? ''));
+        if (
+            !is_array($categories)
+            || !is_array($themes)
+            || !is_array($colors)
+        ) {
+            continue;
+        }
+
+        $categories = array_values(array_filter($categories, 'is_string'));
+        $themes = array_values(array_filter($themes, 'is_string'));
+        $colors = array_values(array_filter($colors, 'is_string'));
+        $hasSearchCriteria = $query !== ''
+            || $categories !== []
+            || $themes !== []
+            || $colors !== [];
+        $count = (int)($entry['count'] ?? 0);
+        $lastUsedAt = strtotime((string)($entry['lastUsedAt'] ?? '')) ?: 0;
+        if (!$hasSearchCriteria || $count < 1) {
+            continue;
+        }
+
+        if ($count > $highestCount || ($count === $highestCount && $lastUsedAt > $mostRecentUse)) {
+            $highestCount = $count;
+            $mostRecentUse = $lastUsedAt;
+            $mostUsedSearch = [
+                'categories' => $categories,
+                'themes' => $themes,
+                'colors' => $colors,
+                'query' => $query
+            ];
+        }
+    }
+
+    return $mostUsedSearch;
+}
+
 private function logSageProductsUsage(
     array $categories,
     array $themes,
@@ -897,23 +984,38 @@ private function logSageProductsUsage(
 
 public function getSageProducts($page = 1, $query = '', $categories = [], $themes = [], $colors = [])
 {
-    // 1. Normalisation et traduction des catégories
+    // 1. Normalisation des filtres reçus
     $categoriesArray = is_array($categories) ? $categories : explode(',', (string)$categories);
     $categoriesList = array_filter(array_map('trim', $categoriesArray));
+    $themesArray = is_array($themes) ? $themes : explode(',', (string)$themes);
+    $themesList = array_filter(array_map('trim', $themesArray));
+    $colorsArray = is_array($colors) ? $colors : explode(',', (string)$colors);
+    $colorsList = array_filter(array_map('trim', $colorsArray));
+    $cleanQuery = trim((string)$query);
+
+    $usedMostPopularSearch = false;
+    if ($categoriesList === [] && $themesList === [] && $colorsList === [] && $cleanQuery === '') {
+        $mostUsedSearch = $this->getMostUsedSageProductsSearch();
+        if ($mostUsedSearch !== null) {
+            $categoriesList = $mostUsedSearch['categories'];
+            $themesList = $mostUsedSearch['themes'];
+            $colorsList = $mostUsedSearch['colors'];
+            $cleanQuery = $mostUsedSearch['query'];
+            $usedMostPopularSearch = true;
+        }
+    }
+
+    // Traduction des catégories
     $translatedCategories = [];
     foreach ($categoriesList as $cat) {
         $translatedCategories[] = $this->translateToEnglish($cat);
     }
     $categoriesString = !empty($translatedCategories) ? implode(',', $translatedCategories) : '';
 
-    // 2. Normalisation et traduction des thèmes
-    $themesArray = is_array($themes) ? $themes : explode(',', (string)$themes);
-    $themesList = array_filter(array_map('trim', $themesArray));
+    // 2. Normalisation des thèmes
     $themesString = implode(',', $themesList);
 
-    // 3. Normalisation et traduction des couleurs
-    $colorsArray = is_array($colors) ? $colors : explode(',', (string)$colors);
-    $colorsList = array_filter(array_map('trim', $colorsArray));
+    // 3. Traduction des couleurs
     $translatedColors = [];
     foreach ($colorsList as $color) {
         $translatedColors[] = $this->translateToEnglish($color);
@@ -921,7 +1023,6 @@ public function getSageProducts($page = 1, $query = '', $categories = [], $theme
     $colorsString = !empty($translatedColors) ? implode(',', $translatedColors) : '';
 
     // 4. Recherche textuelle
-    $cleanQuery = trim((string)$query);
     $quickSearchValue = $cleanQuery !== '' ? $this->translateToEnglish($cleanQuery) : '';
 
     $url = "https://www.promoplace.com/ws/ws.dll/ConnectAPI";
@@ -955,13 +1056,20 @@ public function getSageProducts($page = 1, $query = '', $categories = [], $theme
         "search"    => $searchPayload
     ];
 
-    $this->logSageProductsUsage(
-        $categoriesList,
-        $themesList,
-        $colorsList,
-        $cleanQuery,
-        max(1, (int)$page)
-    );
+    if (!$usedMostPopularSearch && (
+        $categoriesList !== []
+        || $themesList !== []
+        || $colorsList !== []
+        || $cleanQuery !== ''
+    )) {
+        $this->logSageProductsUsage(
+            $categoriesList,
+            $themesList,
+            $colorsList,
+            $cleanQuery,
+            max(1, (int)$page)
+        );
+    }
 
     $cachePath = $this->getSageProductsCachePath($data);
     $cachedResponse = $this->readSageProductsCache($cachePath);
