@@ -59,7 +59,6 @@ async function loadSageProducts(
   activePage,
   query,
   categoriesRaw,
-  colorsRaw,
   themesRaw, // <--- NOUVEAU
   productContainer,
 ) {
@@ -68,7 +67,6 @@ async function loadSageProducts(
       page: activePage,
       query: query,
       categories: categoriesRaw,
-      colors: colorsRaw,
       themes: themesRaw || '' // <--- NOUVEAU
     });
 
@@ -190,11 +188,9 @@ document.addEventListener("DOMContentLoaded", function () {
   const query = searchParams.get("query") || "";
   let categoriesRaw = searchParams.get("categories") || "";
   let themesRaw = searchParams.get("themes") || ""; // <--- DÉCLARATION MANQUANTE ICI
-  let colorsRaw = searchParams.get("colors") || "";
 
   let categories = categoriesRaw ? categoriesRaw.split(",") : [];
   let themes = themesRaw ? themesRaw.split(",") : []; // <--- AJOUT POUR DÉCOUPER LES THÈMES
-  let colors = colorsRaw ? colorsRaw.split(",") : [];
 
   // --- 1. CHARGEMENT DE VOS PRODUITS (PRIORITAIRES) ---
   fetch(
@@ -205,9 +201,7 @@ document.addEventListener("DOMContentLoaded", function () {
       "&categories=" +
       encodeURIComponent(categoriesRaw) +
       "&themes=" +
-      encodeURIComponent(themesRaw) +
-      "&colors=" +
-      encodeURIComponent(colorsRaw),
+      encodeURIComponent(themesRaw),
   )
     .then((response) => response.json())
     .then((data) => {
@@ -231,41 +225,18 @@ document.addEventListener("DOMContentLoaded", function () {
           window.lastLoadedProductsImgNames[p.sku] = p.imgNames;
         });
 
-        // Génération filtres couleurs
-        let colorsHTML = "";
-        if (data.colors && data.colors.length === 0) {
-          colorsHTML =
-            '<div class="checkboxFilterContainer">Aucune couleur trouvée</div>';
-        } else if (data.colors) {
+        if (data.colors) {
           data.colors.forEach((color) => {
             if (superAdminColorsList) {
               superAdminColorsList.innerHTML +=
                 '<option value="' + color["name"] + '">';
             }
-
-            let isChecked = colors.includes(color["name"]);
-            let isValid =
-              data.validColors ?
-                data.validColors.includes(color["name"])
-              : true;
-            let isDisabled = !isChecked && !isValid;
-            let safeColorName = escapeHTML(color["name"]);
-
-            colorsHTML += `
-                            <div class='checkboxFilterContainer ${isDisabled ? "disabled-filter" : ""}'>
-                                <input type='checkbox' data-type='colors' data-name="${safeColorName}" ${isChecked ? "checked" : ""} ${isDisabled ? "disabled" : ""}>
-                                <label>${color["name"]}</label>
-                                <img title="${safeColorName}" class="color-thumbnail-image"
-                                    src="./static-resources/products/colors/${encodeURIComponent(color["name"])}.webp" 
-                                    alt="Couleur ${safeColorName}" loading="lazy">
-                            </div>`;
           });
         }
 
- let categoriesHTML = '';
-        if (data.categories && data.categories.length === 0) {
-            categoriesHTML = '<div class="checkboxFilterContainer">Aucune catégorie trouvée</div>';
-        } else if (data.categories) {
+        let categoriesHTML = '';
+        let themesHTML = '';
+        if (data.categories) {
             data.categories.forEach(categorie => {
                 const frName = (categorie.fr_name || categorie.name || '').trim();
                 const enName = (categorie.en_name || '').trim();
@@ -288,7 +259,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 const normFr = removeAccents(frName);
                 const normEn = removeAccents(enName);
 
-                categoriesHTML += `
+                const itemHTML = `
                     <div class='checkboxFilterContainer ${isDisabled ? 'disabled-filter' : ''}'
                          data-fr="${escapeHTML(frName)}"
                          data-en="${escapeHTML(enName)}"
@@ -307,7 +278,19 @@ document.addEventListener("DOMContentLoaded", function () {
                             <small class="cat-label-en" style="color: #888; font-size: 0.85em; display: none; margin-left: 4px;"></small>
                         </label>
                     </div>`;
+
+                if (paramType === 'theme') {
+                    themesHTML += itemHTML;
+                } else {
+                    categoriesHTML += itemHTML;
+                }
             });
+        }
+        if (!categoriesHTML) {
+            categoriesHTML = '<div class="checkboxFilterContainer">Aucune catégorie trouvée</div>';
+        }
+        if (!themesHTML) {
+            themesHTML = '<div class="checkboxFilterContainer">Aucun thème trouvé</div>';
         }
 
         // Injection du code dans filterSection
@@ -322,11 +305,11 @@ document.addEventListener("DOMContentLoaded", function () {
                         </div>
                     </details>
                     <details>
-                        <summary>Couleurs</summary>
+                        <summary>Thèmes</summary>
                         <div class='developedDetails'>
-                            <input type="text" class="filter-search" placeholder="Rechercher une couleur" 
-                                   onkeyup="filterList(this, 'colors-container')">
-                            <div id="colors-container">${colorsHTML}</div>
+                            <input type="text" class="filter-search" placeholder="Rechercher un thème"
+                                   onkeyup="filterList(this, 'themes-container')">
+                            <div id="themes-container">${themesHTML}</div>
                             <button onclick='searchProduct()'>Filtrer</button>
                         </div>
                     </details>
@@ -354,12 +337,10 @@ document.addEventListener("DOMContentLoaded", function () {
             (cat) => cat.trim() !== "",
           );
           const activeThemes = themes.filter((theme) => theme.trim() !== "");
-          const activeColors = colors.filter((col) => col.trim() !== "");
 
           if (
             activeCategories.length === 0 &&
-            activeThemes.length === 0 &&
-            activeColors.length === 0
+            activeThemes.length === 0
           ) {
             ownedCategory.style.display = "none";
           } else {
@@ -370,7 +351,6 @@ document.addEventListener("DOMContentLoaded", function () {
             activeThemes.forEach((theme) =>
               addNewCategoryBadge(theme, "themes"),
             );
-            activeColors.forEach((col) => addNewCategoryBadge(col, "colors"));
           }
         }
 
@@ -393,14 +373,7 @@ document.addEventListener("DOMContentLoaded", function () {
             .replace(".", ",");
           let activeHtml = product.active == 0 ? "notActive" : "";
 
-          let matchingColors = [];
-          if (colors && colors.length > 0 && product.availableColors) {
-            matchingColors = product.availableColors.filter((color) =>
-              colors.includes(color),
-            );
-          }
-          let colorsToRender =
-            matchingColors.length > 0 ? matchingColors : [null];
+          let colorsToRender = [null];
 
           colorsToRender.forEach((currentColor) => {
             totalLoadedProducts++; // Incrémente le compteur
@@ -519,7 +492,6 @@ document.addEventListener("DOMContentLoaded", function () {
         activePage,
         query,
         categoriesRaw,
-        colorsRaw,
         themesRaw,
         productContainer,
       );
@@ -530,7 +502,6 @@ document.addEventListener("DOMContentLoaded", function () {
         activePage,
         query,
         categoriesRaw,
-        colorsRaw,
         themesRaw,
         productContainer,
       );
@@ -819,15 +790,8 @@ function searchProduct() {
   let searchBar = document.querySelector("#searchBar");
   let searchBarValue = searchBar ? searchBar.value.trim() : "";
 
-  let checkedColors = [];
   let checkedCategories = [];
   let checkedThemes = [];
-
-  document
-    .querySelectorAll('input[type="checkbox"][data-type="colors"]:checked')
-    .forEach((color) => {
-      checkedColors.push(color.dataset.name);
-    });
 
   document
     .querySelectorAll('input[type="checkbox"][data-type="categories"]:checked')
@@ -851,7 +815,6 @@ function searchProduct() {
   if (searchBarValue) params.set("query", searchBarValue);
   if (checkedCategories.length > 0) params.set("categories", checkedCategories.join(","));
   if (checkedThemes.length > 0) params.set("themes", checkedThemes.join(",")); // <--- NOUVEAU
-  if (checkedColors.length > 0) params.set("colors", checkedColors.join(","));
 
   window.location.href = "./produits?" + params.toString();
 }
@@ -983,11 +946,9 @@ function initInfiniteScroll(currentPage, totalProducts) {
         const query = searchParams.get("query") || "";
         const categoriesRaw = searchParams.get("categories") || "";
         const themesRaw = searchParams.get("themes") || ""; // <--- NOUVEAU
-        const colorsRaw = searchParams.get("colors") || "";
-        const colors = colorsRaw ? colorsRaw.split(",") : [];
 
         fetch(
-          `./api/GET/products?page=${nextPage}&query=${encodeURIComponent(query)}&categories=${encodeURIComponent(categoriesRaw)}&themes=${encodeURIComponent(themesRaw)}&colors=${encodeURIComponent(colorsRaw)}`,
+          `./api/GET/products?page=${nextPage}&query=${encodeURIComponent(query)}&categories=${encodeURIComponent(categoriesRaw)}&themes=${encodeURIComponent(themesRaw)}`,
         )
           .then((r) => r.json())
           .then((data) => {
@@ -1011,14 +972,7 @@ function initInfiniteScroll(currentPage, totalProducts) {
                   product.supplier.name
                 : "";
 
-              let matchingColors = [];
-              if (colors && colors.length > 0 && product.availableColors) {
-                matchingColors = product.availableColors.filter((color) =>
-                  colors.includes(color),
-                );
-              }
-              let colorsToRender =
-                matchingColors.length > 0 ? matchingColors : [null];
+              let colorsToRender = [null];
 
               colorsToRender.forEach((currentColor) => {
                 const uniqueCardId =

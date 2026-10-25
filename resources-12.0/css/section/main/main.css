@@ -161,7 +161,7 @@ main.homePage .welcomeContainer{
     }
 
     /* --- CORRECTION DES DETAILS & FILTRES --- */
-    #categories-container, #brands-container, #colors-container, #suppliers-container {
+    #categories-container, #brands-container, #colors-container, #suppliers-container, #themes-container{
         max-height: none !important; /* Retire le blocage de 200px */
         overflow: visible !important;
     }
@@ -340,7 +340,7 @@ main.homePage .welcomeContainer p{
     gap:10px;
 }
 
-#categories-container, #brands-container, #colors-container, #suppliers-container{
+#categories-container, #brands-container, #colors-container, #suppliers-container, #themes-container{
     margin:10px auto;
     max-height:200px;
     overflow: auto;

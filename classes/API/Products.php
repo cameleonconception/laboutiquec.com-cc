@@ -573,14 +573,19 @@ public function getProducts($page, $query, $categories, $colors, $themes = []) {
         }
     }
 
-    // Dédoublonnage sur la version française et anglaise
-    $existingNames = array_map(
-        fn($c) => mb_strtolower(trim($c['fr_name'] ?? $c['name'] ?? '')),
-        $allCategories
-    );
+    // Dédoublonner séparément les catégories et les thèmes.
+    $existingNames = [
+        'categorie' => array_map(
+            fn($c) => mb_strtolower(trim($c['fr_name'] ?? $c['name'] ?? '')),
+            $allCategories
+        ),
+        'theme' => []
+    ];
 
     // Fonction d'ajout avec support de param ('categorie'/'theme') et origin ('sage')
-    $appendSageItems = function(array $items, string $prefix, string $paramType) use (&$allCategories, &$existingNames) {
+    $appendSageItems = function (array $items, string $prefix, string $paramType) use (&$allCategories, &$existingNames) {
+        $existingNames[$paramType] = $existingNames[$paramType] ?? [];
+
         foreach ($items as $item) {
             $frName = trim($item['fr_name'] ?? $item['name'] ?? '');
             $enName = trim($item['en_name'] ?? $item['name'] ?? '');
@@ -591,7 +596,7 @@ public function getProducts($page, $query, $categories, $colors, $themes = []) {
             if (!empty($displayName)) {
                 $checkKey = mb_strtolower($displayName);
 
-                if (!in_array($checkKey, $existingNames, true)) {
+                if (!in_array($checkKey, $existingNames[$paramType], true)) {
                     $allCategories[] = [
                         'id'      => $item['id'] ?? ($prefix . '_' . md5($checkKey)),
                         'name'    => $displayName,
@@ -600,7 +605,7 @@ public function getProducts($page, $query, $categories, $colors, $themes = []) {
                         'param'   => $paramType,
                         'origin'  => 'sage'
                     ];
-                    $existingNames[] = $checkKey;
+                    $existingNames[$paramType][] = $checkKey;
                 }
             }
         }
