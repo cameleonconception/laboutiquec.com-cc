@@ -1,24 +1,6 @@
 window.lastLoadedProductsImgNames = {};
 let totalLoadedProducts = 0; // Compteur global de produits affichés
 
-async function translateText(text) {
-  if (!text || typeof text !== "string") return text;
-  try {
-    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=fr&dt=t&q=${encodeURIComponent(text)}`;
-    const response = await fetch(url);
-    const data = await response.json();
-
-    // Recompose le texte si le résultat est découpé en plusieurs segments
-    if (data && data[0]) {
-      return data[0].map((segment) => segment[0]).join("");
-    }
-    return text;
-  } catch (e) {
-    console.error("Erreur de traduction Google :", e);
-    return text;
-  }
-}
-
 function parseImageFilename(fileName) {
   if (!fileName || typeof fileName !== "string") {
     return { prefix: "", position: 0, timestamp: 0, fullName: "" };
@@ -108,7 +90,7 @@ async function loadSageProducts(
         totalLoadedProducts++;
 
         const baseSku = product.spc || product.prodEId;
-        const productName = (await translateText(product.name)) || "";
+        const productName = product.name || "Nom inconnu";
 
         let initialImageSrc =
           product.thumbPic ||

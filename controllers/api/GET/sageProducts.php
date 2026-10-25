@@ -2,29 +2,20 @@
 
 require_once('classes/API/Products.php');
 
+$page = isset($_GET['page']) ? intval($_GET['page']) : 1;
+$query = isset($_GET['query']) ? trim($_GET['query']) : '';
 
-// Récupération de la recherche textuelle
-$query = isset($_GET['query']) ? $_GET['query'] : '';
-
-/**
- * Transformation des filtres en tableaux
- * Si l'URL est : products.php?colors=1,4,12
- * explode() transforme cela en : [1, 4, 12]
- */
 $categories = (isset($_GET['categories']) && $_GET['categories'] !== '') 
-    ? explode(',', $_GET['categories']) 
+    ? array_filter(array_map('trim', explode(',', $_GET['categories']))) 
+    : [];
+
+$themes = (isset($_GET['themes']) && $_GET['themes'] !== '') 
+    ? array_filter(array_map('trim', explode(',', $_GET['themes']))) 
     : [];
 
 $colors = (isset($_GET['colors']) && $_GET['colors'] !== '') 
-    ? explode(',', $_GET['colors']) 
+    ? array_filter(array_map('trim', explode(',', $_GET['colors']))) 
     : [];
 
 $product = new Products;
-
-// On passe maintenant des tableaux à la méthode getProducts
-$product->getSageProducts($page, $query, $categories, $colors);
-
-?>
-
-
-
+$product->getSageProducts($page, $query, $categories, $themes, $colors);

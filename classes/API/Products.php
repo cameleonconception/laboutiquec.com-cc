@@ -633,29 +633,97 @@ private function translateToEnglish(string $text): string
 }
 
 
-public function getSageProducts($page, $query)
+public function getSageProducts($page = 1, $query = '', $categories = [], $themes = [], $colors = [])
 {
-    // Traduction automatique en anglais
-    $translatedQuery = $this->translateToEnglish($query ?? '');
+    // 1. Normalisation et traduction des catégories reçues en anglais
+    $categoriesArray = is_array($categories) ? $categories : explode(',', (string)$categories);
+    $categoriesList = array_filter(array_map('trim', $categoriesArray));
+    $translatedCategories = [];
+    foreach ($categoriesList as $cat) {
+        $translatedCategories[] = $this->translateToEnglish($cat);
+    }
+    // Chaîne de caractères délimitée par des virgules
+    $categoriesString = !empty($translatedCategories) ? implode(',', $translatedCategories) : '';
+
+    // 2. Normalisation et traduction des thèmes reçus en anglais
+    $themesArray = is_array($themes) ? $themes : explode(',', (string)$themes);
+    $themesList = array_filter(array_map('trim', $themesArray));
+    $translatedThemes = [];
+    foreach ($themesList as $th) {
+        $translatedThemes[] = $this->translateToEnglish($th);
+    }
+    // Chaîne de caractères délimitée par des virgules
+    $themesString = !empty($translatedThemes) ? implode(',', $translatedThemes) : '';
+
+    // 3. Normalisation et traduction des couleurs en anglais
+    $colorsArray = is_array($colors) ? $colors : explode(',', (string)$colors);
+    $colorsList = array_filter(array_map('trim', $colorsArray));
+    $translatedColors = [];
+    foreach ($colorsList as $color) {
+        $translatedColors[] = $this->translateToEnglish($color);
+    }
+    // Chaîne de caractères délimitée par des virgules
+    $colorsString = !empty($translatedColors) ? implode(',', $translatedColors) : '';
+
+    // 4. Détermination de la valeur de quickSearch selon la logique de priorité
+    $quickSearchValue = '';
+    $cleanQuery = trim((string)$query);
+
+    if (!empty($cleanQuery)) {
+        // Priorité 1 : Requête textuelle
+        $quickSearchValue = $this->translateToEnglish($cleanQuery);
+    } elseif (!empty($translatedCategories)) {
+        // Priorité 2 : 1ère catégorie en anglais
+        $quickSearchValue = implode(' OR ', $translatedCategories);
+    } elseif (!empty($translatedThemes)) {
+        // Priorité 3 : 1er thème en anglais
+        $quickSearchValue = implode(' OR ', $translatedThemes);
+    } else {
+        // Priorité 4 : Fallback
+        $quickSearchValue = "product";
+    }
 
     $open = true;
     if ($open) {
         $url = "https://www.promoplace.com/ws/ws.dll/ConnectAPI";
 
+        // Construction du payload de recherche
+        $searchPayload = [
+            "quickSearch"       => $quickSearchValue,
+            "sort"              => "POPULARITY",
+            "verify"            => 1,
+            "extraReturnFields" => "COLORS"
+        ];
+
+        // Pagination
+        if ($page > 1) {
+            $searchPayload["page"] = (int)$page;
+        }
+
+        // Catégories sous forme de chaîne de caractères délimitée par des virgules
+        if (!empty($categoriesString)) {
+            $searchPayload["categories"] = $categoriesString;
+        }
+
+        // Thèmes sous forme de chaîne de caractères délimitée par des virgules
+        if (!empty($themesString)) {
+            $searchPayload["themes"] = $themesString;
+        }
+
+        // Couleurs sous forme de chaîne de caractères délimitée par des virgules
+        if (!empty($colorsString)) {
+            $searchPayload["colors"] = $colorsString;
+        }
+
         $data = [
             "serviceId" => 103,
-            "apiVer" => 130,
-            "auth" => [
-                "acctId"  => getenv('SAGE_ACCT_ID')  ?: ($_ENV['SAGE_ACCT_ID']  ?? ''),
-                "loginId" => getenv('SAGE_LOGIN_ID') ?: ($_ENV['SAGE_LOGIN_ID'] ?? ''),
-                "key"     => getenv('SAGE_AUTH_KEY')  ?: ($_ENV['SAGE_AUTH_KEY']  ?? '')
+            "apiVer"    => 130,
+            "auth"      => [
+                "acctId"  => getenv('SAGE_ACCT_ID')  ?: ($_ENV['SAGE_ACCT_ID']  ?? '272296'),
+                "loginId" => getenv('SAGE_LOGIN_ID') ?: ($_ENV['SAGE_LOGIN_ID'] ?? 'System'),
+                "key"     => getenv('SAGE_AUTH_KEY')  ?: ($_ENV['SAGE_AUTH_KEY']  ?? 'ff2a459cc459f1acbec11268a1e24c57')
             ],
-            "search" => [
-                "quickSearch" => $translatedQuery || "office OR scrub OR sport OR stylus OR mug",
-                //"siteCountry" => "CA",
-                //"verified" => 1,
-                //"popular" => 1,
-            ]
+            "search"    => $searchPayload
         ];
 
         $jsonData = json_encode($data);
@@ -673,21 +741,21 @@ public function getSageProducts($page, $query)
         $error    = curl_error($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
-        unset($ch);
+        curl_close($ch);
 
         if ($error) {
             http_response_code(500);
-            echo json_encode(["error" => "Erreur cURL : " . $error]);
+            echo json_encode(["ok" => false, "error" => "Erreur cURL : " . $error]);
             exit;
         }
 
         if ($httpCode !== 200) {
             http_response_code($httpCode);
-            echo json_encode(["error" => "Erreur API Sage (HTTP $httpCode)", "details" => $response]);
+            echo json_encode(["ok" => false, "error" => "Erreur API Sage (HTTP $httpCode)", "details" => $response]);
             exit;
         }
 
-        header('Content-Type: application/json');
+        header('Content-Type: application/json; charset=utf-8');
         echo $response; 
         exit;
     }
