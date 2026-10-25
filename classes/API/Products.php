@@ -486,40 +486,106 @@ public function getProducts($page, $query, $categories, $colors) {
         $product['lowestPrice'] = !empty($prices) ? min($prices) : null;
         unset($product['variants_prices']); 
     }
-
+// -------------------------------------------------------------------------
+    // RÉCUPÉRATION BDD LOCALE ET NORMALISATION fr_name / en_name
+    // -------------------------------------------------------------------------
     $baseWhereRole = ((int)$userRole === 2) ? "P.active IN (0, 1)" : "P.active = 1";
 
+    $rawCategories = $pdo->query("SELECT DISTINCT C.id, C.name FROM categories C JOIN product_category pc ON C.id = pc.category_id JOIN products P ON pc.product_id = P.id WHERE $baseWhereRole ORDER BY C.name ASC")->fetchAll(PDO::FETCH_ASSOC);
+
+    // Formatage avec name, fr_name et en_name pour les catégories de la base locale
+    $allCategories = [];
+    foreach ($rawCategories as $cat) {
+        $catName = trim($cat['name']);
+        $allCategories[] = [
+            'id'      => $cat['id'],
+            'name'    => $catName,
+            'fr_name' => $catName,
+            'en_name' => $catName
+        ];
+    }
+
     $allColors = $pdo->query("SELECT DISTINCT Cl.id, Cl.name FROM colors Cl JOIN product_size_color_price pscp ON Cl.id = pscp.color_id JOIN products P ON pscp.product_id = P.id WHERE $baseWhereRole ORDER BY Cl.name ASC")->fetchAll(PDO::FETCH_ASSOC);
-    $allCategories = $pdo->query("SELECT DISTINCT C.id, C.name FROM categories C JOIN product_category pc ON C.id = pc.category_id JOIN products P ON pc.product_id = P.id WHERE $baseWhereRole ORDER BY C.name ASC")->fetchAll(PDO::FETCH_ASSOC);
     $allSizes = $pdo->query("SELECT DISTINCT S_size.id, S_size.name FROM sizes S_size JOIN product_size_color_price pscp ON S_size.id = pscp.size_id JOIN products P ON pscp.product_id = P.id WHERE $baseWhereRole ORDER BY S_size.name ASC")->fetchAll(PDO::FETCH_ASSOC);
     $allSuppliers = $pdo->query("SELECT id, name, shippingCost, freeShippingAt FROM suppliers ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
 
     // -------------------------------------------------------------------------
-    // BUCLE SUR LES ITEMS SAGE ET INTEGRATION DANS $allCategories
+    // CHARGEMENT DES CATÉGORIES ET THÈMES SAGE AVEC fr_name ET en_name
     // -------------------------------------------------------------------------
-    $sageItems = $this->fetchSageCategoriesData();
-    if (!empty($sageItems)) {
-        // Tableau de comparaison en minuscules pour éviter les doublons avec la BDD locale
-        $existingNames = array_map(fn($c) => mb_strtolower(trim($c['name'])), $allCategories);
+    // 1. Catégories Sage
+    $categoriesJsonPath = 'controllers/json/sageCategories.json';
+    $sageCategoriesItems = [];
 
-        foreach ($sageItems as $item) {
-            if (isset($item['name']) && !empty(trim($item['name']))) {
-                $categoryName = trim($item['name']);
+    if (file_exists($categoriesJsonPath)) {
+        $decoded = json_decode(file_get_contents($categoriesJsonPath), true);
+        if (is_array($decoded)) {
+            if (isset($decoded['sageCategories']) && is_array($decoded['sageCategories'])) {
+                $sageCategoriesItems = $decoded['sageCategories'];
+            } elseif (isset($decoded['items']) && is_array($decoded['items'])) {
+                $sageCategoriesItems = $decoded['items'];
+            } else {
+                $sageCategoriesItems = $decoded;
+            }
+        }
+    }
 
-                if (!in_array(mb_strtolower($categoryName), $existingNames)) {
+    // 2. Thèmes Sage
+    $themesJsonPath = 'controllers/json/sageThemes.json';
+    $sageThemeItems = [];
+
+    if (file_exists($themesJsonPath)) {
+        $decodedThemes = json_decode(file_get_contents($themesJsonPath), true);
+        if (is_array($decodedThemes)) {
+            if (isset($decodedThemes['sageThemes']) && is_array($decodedThemes['sageThemes'])) {
+                $sageThemeItems = $decodedThemes['sageThemes'];
+            } elseif (isset($decodedThemes['items']) && is_array($decodedThemes['items'])) {
+                $sageThemeItems = $decodedThemes['items'];
+            } else {
+                $sageThemeItems = $decodedThemes;
+            }
+        }
+    }
+
+    // Dédoublonnage sur la version française et anglaise
+    $existingNames = array_map(
+        fn($c) => mb_strtolower(trim($c['fr_name'] ?? $c['name'] ?? '')),
+        $allCategories
+    );
+
+    $appendSageItems = function(array $items, string $prefix) use (&$allCategories, &$existingNames) {
+        foreach ($items as $item) {
+            $frName = trim($item['fr_name'] ?? $item['name'] ?? '');
+            $enName = trim($item['en_name'] ?? $item['name'] ?? '');
+
+            // Nom principal affiché (par défaut en français, repli sur l'anglais)
+            $displayName = !empty($frName) ? $frName : $enName;
+
+            if (!empty($displayName)) {
+                $checkKey = mb_strtolower($displayName);
+
+                if (!in_array($checkKey, $existingNames, true)) {
                     $allCategories[] = [
-                        'id'   => $item['id'] ?? ('sage_' . md5($categoryName)),
-                        'name' => $categoryName
+                        'id'      => $item['id'] ?? ($prefix . '_' . md5($checkKey)),
+                        'name'    => $displayName,
+                        'fr_name' => $frName !== '' ? $frName : $displayName,
+                        'en_name' => $enName !== '' ? $enName : $displayName
                     ];
-                    $existingNames[] = mb_strtolower($categoryName);
+                    $existingNames[] = $checkKey;
                 }
             }
         }
+    };
 
-        // Tri alphabétique final de l'ensemble des catégories
-        usort($allCategories, fn($a, $b) => strcoll($a['name'], $b['name']));
-    }
+    // Insertion des catégories Sage et des thèmes Sage
+    $appendSageItems($sageCategoriesItems, 'sage_cat');
+    $appendSageItems($sageThemeItems, 'sage_theme');
 
+    // Tri alphabétique final basé sur le nom affiché
+    usort($allCategories, fn($a, $b) => strcoll($a['name'], $b['name']));
+
+    // -------------------------------------------------------------------------
+    // SORTIE JSON FINALE
+    // -------------------------------------------------------------------------
     echo json_encode([
         'success'           => true,
         'totalProducts'     => (int)$totalProducts,
@@ -537,52 +603,6 @@ public function getProducts($page, $query, $categories, $colors) {
 /**
  * Helper privé pour exécuter la requête cURL vers Sage et retourner le tableau d'items
  */
-private function fetchSageCategoriesData(): array
-{
-    try {
-        $url = "https://www.promoplace.com/ws/ws.dll/ConnectAPI";
-
-        $data = [
-            "serviceId" => 101,
-            "apiVer" => 130,
-            "auth" => [
-                "acctId"  => getenv('SAGE_ACCT_ID')  ?: ($_ENV['SAGE_ACCT_ID']  ?? ''),
-                "loginId" => getenv('SAGE_LOGIN_ID') ?: ($_ENV['SAGE_LOGIN_ID'] ?? ''),
-                "key"     => getenv('SAGE_AUTH_KEY')  ?: ($_ENV['SAGE_AUTH_KEY']  ?? '')
-            ],
-            "listType" => "categories"
-        ];
-
-        $jsonData = json_encode($data);
-
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonData);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json',
-            'Content-Length: ' . strlen($jsonData)
-        ]);
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($httpCode === 200 && $response) {
-            $decoded = json_decode($response, true);
-            if (is_array($decoded) && isset($decoded['items']) && is_array($decoded['items'])) {
-                return $decoded['items'];
-            }
-        }
-    } catch (\Throwable $e) {
-        error_log("Erreur lors de la récupération des catégories Sage : " . $e->getMessage());
-    }
-
-    return [];
-}
-
-
 
 private function translateToEnglish(string $text): string
 {
@@ -627,7 +647,7 @@ public function getSageProducts($page, $query)
                 "key"     => getenv('SAGE_AUTH_KEY')  ?: ($_ENV['SAGE_AUTH_KEY']  ?? '')
             ],
             "search" => [
-                "quickSearch" => $translatedQuery,
+                "quickSearch" => $translatedQuery || "office OR scrub OR sport OR stylus OR mug",
                 //"siteCountry" => "CA",
                 //"verified" => 1,
                 //"popular" => 1,
@@ -2359,8 +2379,6 @@ public function deleteColorImage($fileName) {
 }
 
 }
-
-
 
 
 

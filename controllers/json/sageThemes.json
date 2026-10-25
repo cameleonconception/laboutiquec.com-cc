@@ -1,0 +1,985 @@
+{
+  "ok": true,
+  "items": [
+    {
+      "id": 1,
+      "en_name": "3D",
+      "fr_name": "3D"
+    },
+    {
+      "id": 2,
+      "en_name": "50's",
+      "fr_name": "Années 50"
+    },
+    {
+      "id": 3,
+      "en_name": "60's",
+      "fr_name": "Années 60"
+    },
+    {
+      "id": 4,
+      "en_name": "70's",
+      "fr_name": "Années 70"
+    },
+    {
+      "id": 5,
+      "en_name": "80's",
+      "fr_name": "Années 80"
+    },
+    {
+      "id": 6,
+      "en_name": "90's",
+      "fr_name": "Années 90"
+    },
+    {
+      "id": 202,
+      "en_name": "Agriculture",
+      "fr_name": "Agriculture"
+    },
+    {
+      "id": 7,
+      "en_name": "American",
+      "fr_name": "Américain"
+    },
+    {
+      "id": 8,
+      "en_name": "Amusement",
+      "fr_name": "Divertissement"
+    },
+    {
+      "id": 9,
+      "en_name": "Animal",
+      "fr_name": "Animaux"
+    },
+    {
+      "id": 10,
+      "en_name": "Anniversary",
+      "fr_name": "Anniversaire"
+    },
+    {
+      "id": 11,
+      "en_name": "Automotive",
+      "fr_name": "Automobile"
+    },
+    {
+      "id": 12,
+      "en_name": "Aviation",
+      "fr_name": "Aviation"
+    },
+    {
+      "id": 13,
+      "en_name": "Award",
+      "fr_name": "Récompenses"
+    },
+    {
+      "id": 14,
+      "en_name": "Awareness",
+      "fr_name": "Sensibilisation"
+    },
+    {
+      "id": 15,
+      "en_name": "Baby",
+      "fr_name": "Bébé"
+    },
+    {
+      "id": 16,
+      "en_name": "Banking",
+      "fr_name": "Services bancaires"
+    },
+    {
+      "id": 17,
+      "en_name": "Barware",
+      "fr_name": "Accessoires de bar"
+    },
+    {
+      "id": 18,
+      "en_name": "Baseball",
+      "fr_name": "Baseball"
+    },
+    {
+      "id": 19,
+      "en_name": "Basketball",
+      "fr_name": "Basketball"
+    },
+    {
+      "id": 20,
+      "en_name": "Bathroom",
+      "fr_name": "Salle de bains"
+    },
+    {
+      "id": 21,
+      "en_name": "Beach",
+      "fr_name": "Plage"
+    },
+    {
+      "id": 22,
+      "en_name": "Beauty",
+      "fr_name": "Beauté"
+    },
+    {
+      "id": 23,
+      "en_name": "Beverage",
+      "fr_name": "Boissons"
+    },
+    {
+      "id": 24,
+      "en_name": "Biking",
+      "fr_name": "Cyclisme"
+    },
+    {
+      "id": 25,
+      "en_name": "Birthday",
+      "fr_name": "Anniversaire"
+    },
+    {
+      "id": 26,
+      "en_name": "Boating",
+      "fr_name": "Navigation de plaisance"
+    },
+    {
+      "id": 27,
+      "en_name": "Bowling",
+      "fr_name": "Quilles"
+    },
+    {
+      "id": 28,
+      "en_name": "Boxing",
+      "fr_name": "Boxe"
+    },
+    {
+      "id": 29,
+      "en_name": "Breast Cancer Awareness",
+      "fr_name": "Sensibilisation au cancer du sein"
+    },
+    {
+      "id": 30,
+      "en_name": "Business",
+      "fr_name": "Affaires"
+    },
+    {
+      "id": 31,
+      "en_name": "Camping",
+      "fr_name": "Camping"
+    },
+    {
+      "id": 32,
+      "en_name": "Canadian",
+      "fr_name": "Canadien"
+    },
+    {
+      "id": 201,
+      "en_name": "Cannabis",
+      "fr_name": "Cannabis"
+    },
+    {
+      "id": 33,
+      "en_name": "Carnival",
+      "fr_name": "Carnaval"
+    },
+    {
+      "id": 34,
+      "en_name": "Carpentry",
+      "fr_name": "Menuiserie"
+    },
+    {
+      "id": 35,
+      "en_name": "Celebration",
+      "fr_name": "Célébration"
+    },
+    {
+      "id": 36,
+      "en_name": "Chanukah",
+      "fr_name": "Hanoukka"
+    },
+    {
+      "id": 37,
+      "en_name": "Cheerleading",
+      "fr_name": "Meneuses et meneurs de claque"
+    },
+    {
+      "id": 38,
+      "en_name": "Children",
+      "fr_name": "Enfants"
+    },
+    {
+      "id": 39,
+      "en_name": "Christmas",
+      "fr_name": "Noël"
+    },
+    {
+      "id": 40,
+      "en_name": "Church",
+      "fr_name": "Église"
+    },
+    {
+      "id": 41,
+      "en_name": "Cinema",
+      "fr_name": "Cinéma"
+    },
+    {
+      "id": 42,
+      "en_name": "Cleaning",
+      "fr_name": "Nettoyage"
+    },
+    {
+      "id": 43,
+      "en_name": "Clothing",
+      "fr_name": "Vêtements"
+    },
+    {
+      "id": 44,
+      "en_name": "Club",
+      "fr_name": "Club"
+    },
+    {
+      "id": 45,
+      "en_name": "College",
+      "fr_name": "Collège"
+    },
+    {
+      "id": 47,
+      "en_name": "Computer",
+      "fr_name": "Informatique"
+    },
+    {
+      "id": 48,
+      "en_name": "Concert",
+      "fr_name": "Concert"
+    },
+    {
+      "id": 49,
+      "en_name": "Construction",
+      "fr_name": "Construction"
+    },
+    {
+      "id": 50,
+      "en_name": "Convention",
+      "fr_name": "Congrès"
+    },
+    {
+      "id": 51,
+      "en_name": "Cooking",
+      "fr_name": "Cuisine"
+    },
+    {
+      "id": 52,
+      "en_name": "Country",
+      "fr_name": "Country"
+    },
+    {
+      "id": 54,
+      "en_name": "COVID-19",
+      "fr_name": "COVID-19"
+    },
+    {
+      "id": 200,
+      "en_name": "Cutting",
+      "fr_name": "Découpe"
+    },
+    {
+      "id": 56,
+      "en_name": "Cycling",
+      "fr_name": "Cyclisme"
+    },
+    {
+      "id": 57,
+      "en_name": "Dancing",
+      "fr_name": "Danse"
+    },
+    {
+      "id": 58,
+      "en_name": "Decoration",
+      "fr_name": "Décoration"
+    },
+    {
+      "id": 59,
+      "en_name": "Dentist",
+      "fr_name": "Dentiste"
+    },
+    {
+      "id": 60,
+      "en_name": "Drinking",
+      "fr_name": "Boissons"
+    },
+    {
+      "id": 61,
+      "en_name": "Earth Day",
+      "fr_name": "Jour de la Terre"
+    },
+    {
+      "id": 62,
+      "en_name": "Easter",
+      "fr_name": "Pâques"
+    },
+    {
+      "id": 63,
+      "en_name": "Eating",
+      "fr_name": "Repas"
+    },
+    {
+      "id": 156,
+      "en_name": "Education",
+      "fr_name": "Éducation"
+    },
+    {
+      "id": 64,
+      "en_name": "Emergency",
+      "fr_name": "Urgence"
+    },
+    {
+      "id": 65,
+      "en_name": "Entertainment",
+      "fr_name": "Divertissement"
+    },
+    {
+      "id": 66,
+      "en_name": "Environmental",
+      "fr_name": "Environnement"
+    },
+    {
+      "id": 67,
+      "en_name": "Executive",
+      "fr_name": "Cadres"
+    },
+    {
+      "id": 68,
+      "en_name": "Exercise",
+      "fr_name": "Exercice"
+    },
+    {
+      "id": 69,
+      "en_name": "Eyewear",
+      "fr_name": "Lunettes"
+    },
+    {
+      "id": 70,
+      "en_name": "Fall",
+      "fr_name": "Automne"
+    },
+    {
+      "id": 71,
+      "en_name": "Fashion",
+      "fr_name": "Mode"
+    },
+    {
+      "id": 72,
+      "en_name": "Fire",
+      "fr_name": "Feu"
+    },
+    {
+      "id": 73,
+      "en_name": "Fishing",
+      "fr_name": "Pêche"
+    },
+    {
+      "id": 74,
+      "en_name": "Fitness",
+      "fr_name": "Conditionnement physique"
+    },
+    {
+      "id": 75,
+      "en_name": "Food",
+      "fr_name": "Alimentation"
+    },
+    {
+      "id": 76,
+      "en_name": "Football",
+      "fr_name": "Football"
+    },
+    {
+      "id": 77,
+      "en_name": "Footwear",
+      "fr_name": "Chaussures"
+    },
+    {
+      "id": 78,
+      "en_name": "Formal Event",
+      "fr_name": "Événement officiel"
+    },
+    {
+      "id": 79,
+      "en_name": "Fun",
+      "fr_name": "Amusement"
+    },
+    {
+      "id": 80,
+      "en_name": "Fundraising",
+      "fr_name": "Collecte de fonds"
+    },
+    {
+      "id": 81,
+      "en_name": "Funeral",
+      "fr_name": "Funérailles"
+    },
+    {
+      "id": 82,
+      "en_name": "Gambling",
+      "fr_name": "Jeux de hasard"
+    },
+    {
+      "id": 84,
+      "en_name": "Games",
+      "fr_name": "Jeux"
+    },
+    {
+      "id": 85,
+      "en_name": "Gardening",
+      "fr_name": "Jardinage"
+    },
+    {
+      "id": 86,
+      "en_name": "Gift",
+      "fr_name": "Cadeau"
+    },
+    {
+      "id": 87,
+      "en_name": "Golf",
+      "fr_name": "Golf"
+    },
+    {
+      "id": 89,
+      "en_name": "Graduation",
+      "fr_name": "Remise des diplômes"
+    },
+    {
+      "id": 90,
+      "en_name": "Gymnastics",
+      "fr_name": "Gymnastique"
+    },
+    {
+      "id": 91,
+      "en_name": "Halloween",
+      "fr_name": "Halloween"
+    },
+    {
+      "id": 92,
+      "en_name": "Handyman",
+      "fr_name": "Bricolage"
+    },
+    {
+      "id": 93,
+      "en_name": "Headwear",
+      "fr_name": "Couvre-chefs"
+    },
+    {
+      "id": 94,
+      "en_name": "Health",
+      "fr_name": "Santé"
+    },
+    {
+      "id": 95,
+      "en_name": "Hiking",
+      "fr_name": "Randonnée"
+    },
+    {
+      "id": 96,
+      "en_name": "Hockey",
+      "fr_name": "Hockey"
+    },
+    {
+      "id": 97,
+      "en_name": "Holiday",
+      "fr_name": "Fêtes"
+    },
+    {
+      "id": 98,
+      "en_name": "Hospital",
+      "fr_name": "Hôpital"
+    },
+    {
+      "id": 99,
+      "en_name": "Hotel",
+      "fr_name": "Hôtel"
+    },
+    {
+      "id": 100,
+      "en_name": "Household",
+      "fr_name": "Maison"
+    },
+    {
+      "id": 101,
+      "en_name": "Hunting",
+      "fr_name": "Chasse"
+    },
+    {
+      "id": 102,
+      "en_name": "Hygiene",
+      "fr_name": "Hygiène"
+    },
+    {
+      "id": 104,
+      "en_name": "Jogging",
+      "fr_name": "Course à pied"
+    },
+    {
+      "id": 105,
+      "en_name": "July 4th",
+      "fr_name": "4 juillet"
+    },
+    {
+      "id": 106,
+      "en_name": "Kitchen",
+      "fr_name": "Cuisine"
+    },
+    {
+      "id": 107,
+      "en_name": "Lacrosse",
+      "fr_name": "Crosse"
+    },
+    {
+      "id": 108,
+      "en_name": "Legal",
+      "fr_name": "Juridique"
+    },
+    {
+      "id": 109,
+      "en_name": "Library",
+      "fr_name": "Bibliothèque"
+    },
+    {
+      "id": 110,
+      "en_name": "Lifeguard",
+      "fr_name": "Sauveteur"
+    },
+    {
+      "id": 111,
+      "en_name": "Light",
+      "fr_name": "Lumière"
+    },
+    {
+      "id": 112,
+      "en_name": "Magic",
+      "fr_name": "Magie"
+    },
+    {
+      "id": 113,
+      "en_name": "Mardi Gras",
+      "fr_name": "Mardi gras"
+    },
+    {
+      "id": 114,
+      "en_name": "Martial Arts",
+      "fr_name": "Arts martiaux"
+    },
+    {
+      "id": 115,
+      "en_name": "Masquerade",
+      "fr_name": "Bal masqué"
+    },
+    {
+      "id": 116,
+      "en_name": "Medical",
+      "fr_name": "Médical"
+    },
+    {
+      "id": 117,
+      "en_name": "Medieval",
+      "fr_name": "Médiéval"
+    },
+    {
+      "id": 118,
+      "en_name": "Military",
+      "fr_name": "Militaire"
+    },
+    {
+      "id": 119,
+      "en_name": "Money",
+      "fr_name": "Argent"
+    },
+    {
+      "id": 120,
+      "en_name": "Motel",
+      "fr_name": "Motel"
+    },
+    {
+      "id": 122,
+      "en_name": "Music",
+      "fr_name": "Musique"
+    },
+    {
+      "id": 123,
+      "en_name": "Nature",
+      "fr_name": "Nature"
+    },
+    {
+      "id": 124,
+      "en_name": "Nautical",
+      "fr_name": "Nautisme"
+    },
+    {
+      "id": 125,
+      "en_name": "New Year",
+      "fr_name": "Nouvel An"
+    },
+    {
+      "id": 126,
+      "en_name": "Newspaper",
+      "fr_name": "Journal"
+    },
+    {
+      "id": 127,
+      "en_name": "Non-Smoking",
+      "fr_name": "Non-fumeur"
+    },
+    {
+      "id": 128,
+      "en_name": "Office",
+      "fr_name": "Bureau"
+    },
+    {
+      "id": 129,
+      "en_name": "Oktoberfest",
+      "fr_name": "Oktoberfest"
+    },
+    {
+      "id": 130,
+      "en_name": "Olympic",
+      "fr_name": "Olympique"
+    },
+    {
+      "id": 131,
+      "en_name": "Organization",
+      "fr_name": "Organisation"
+    },
+    {
+      "id": 132,
+      "en_name": "Outdoors",
+      "fr_name": "Plein air"
+    },
+    {
+      "id": 133,
+      "en_name": "Party",
+      "fr_name": "Fête"
+    },
+    {
+      "id": 134,
+      "en_name": "Patio",
+      "fr_name": "Terrasse"
+    },
+    {
+      "id": 135,
+      "en_name": "Patriotic",
+      "fr_name": "Patriotique"
+    },
+    {
+      "id": 136,
+      "en_name": "Pet",
+      "fr_name": "Animal de compagnie"
+    },
+    {
+      "id": 137,
+      "en_name": "Pharmacy",
+      "fr_name": "Pharmacie"
+    },
+    {
+      "id": 138,
+      "en_name": "Phone",
+      "fr_name": "Téléphone"
+    },
+    {
+      "id": 139,
+      "en_name": "Photography",
+      "fr_name": "Photographie"
+    },
+    {
+      "id": 204,
+      "en_name": "Pickleball",
+      "fr_name": "Pickleball"
+    },
+    {
+      "id": 140,
+      "en_name": "Picnic",
+      "fr_name": "Pique-nique"
+    },
+    {
+      "id": 203,
+      "en_name": "Pirate",
+      "fr_name": "Pirate"
+    },
+    {
+      "id": 141,
+      "en_name": "Plumbing",
+      "fr_name": "Plomberie"
+    },
+    {
+      "id": 142,
+      "en_name": "Police",
+      "fr_name": "Police"
+    },
+    {
+      "id": 143,
+      "en_name": "Politics",
+      "fr_name": "Politique"
+    },
+    {
+      "id": 144,
+      "en_name": "Pride",
+      "fr_name": "Fierté"
+    },
+    {
+      "id": 145,
+      "en_name": "Racing",
+      "fr_name": "Course"
+    },
+    {
+      "id": 146,
+      "en_name": "Reading",
+      "fr_name": "Lecture"
+    },
+    {
+      "id": 147,
+      "en_name": "Real Estate",
+      "fr_name": "Immobilier"
+    },
+    {
+      "id": 148,
+      "en_name": "Recycling",
+      "fr_name": "Recyclage"
+    },
+    {
+      "id": 149,
+      "en_name": "Religion",
+      "fr_name": "Religion"
+    },
+    {
+      "id": 150,
+      "en_name": "Resort",
+      "fr_name": "Centre de villégiature"
+    },
+    {
+      "id": 151,
+      "en_name": "Restaurant",
+      "fr_name": "Restaurant"
+    },
+    {
+      "id": 152,
+      "en_name": "Roaring 20's",
+      "fr_name": "Années folles"
+    },
+    {
+      "id": 153,
+      "en_name": "Rugby",
+      "fr_name": "Rugby"
+    },
+    {
+      "id": 154,
+      "en_name": "Running",
+      "fr_name": "Course à pied"
+    },
+    {
+      "id": 155,
+      "en_name": "Safety",
+      "fr_name": "Sécurité"
+    },
+    {
+      "id": 157,
+      "en_name": "Science",
+      "fr_name": "Science"
+    },
+    {
+      "id": 158,
+      "en_name": "Security",
+      "fr_name": "Sécurité"
+    },
+    {
+      "id": 159,
+      "en_name": "Sewing",
+      "fr_name": "Couture"
+    },
+    {
+      "id": 160,
+      "en_name": "Shopping",
+      "fr_name": "Magasinage"
+    },
+    {
+      "id": 161,
+      "en_name": "Skating",
+      "fr_name": "Patinage"
+    },
+    {
+      "id": 162,
+      "en_name": "Skiing",
+      "fr_name": "Ski"
+    },
+    {
+      "id": 163,
+      "en_name": "Smoking",
+      "fr_name": "Tabagisme"
+    },
+    {
+      "id": 164,
+      "en_name": "Soccer",
+      "fr_name": "Soccer"
+    },
+    {
+      "id": 165,
+      "en_name": "Softball",
+      "fr_name": "Balle-molle"
+    },
+    {
+      "id": 166,
+      "en_name": "Spa",
+      "fr_name": "Spa"
+    },
+    {
+      "id": 167,
+      "en_name": "Spanish",
+      "fr_name": "Espagnol"
+    },
+    {
+      "id": 169,
+      "en_name": "Sports",
+      "fr_name": "Sports"
+    },
+    {
+      "id": 170,
+      "en_name": "Spring",
+      "fr_name": "Printemps"
+    },
+    {
+      "id": 171,
+      "en_name": "St. Patrick's Day",
+      "fr_name": "Saint-Patrick"
+    },
+    {
+      "id": 172,
+      "en_name": "State",
+      "fr_name": "État"
+    },
+    {
+      "id": 173,
+      "en_name": "Summer",
+      "fr_name": "Été"
+    },
+    {
+      "id": 174,
+      "en_name": "Sun",
+      "fr_name": "Soleil"
+    },
+    {
+      "id": 175,
+      "en_name": "Swimming",
+      "fr_name": "Natation"
+    },
+    {
+      "id": 176,
+      "en_name": "Tailgating",
+      "fr_name": "Fête d'avant-match"
+    },
+    {
+      "id": 177,
+      "en_name": "Television",
+      "fr_name": "Télévision"
+    },
+    {
+      "id": 178,
+      "en_name": "Tennis",
+      "fr_name": "Tennis"
+    },
+    {
+      "id": 179,
+      "en_name": "Thanksgiving",
+      "fr_name": "Action de grâce"
+    },
+    {
+      "id": 180,
+      "en_name": "Time",
+      "fr_name": "Temps"
+    },
+    {
+      "id": 181,
+      "en_name": "Towing",
+      "fr_name": "Remorquage"
+    },
+    {
+      "id": 182,
+      "en_name": "Trade Show",
+      "fr_name": "Salon professionnel"
+    },
+    {
+      "id": 205,
+      "en_name": "Train",
+      "fr_name": "Train"
+    },
+    {
+      "id": 184,
+      "en_name": "Transportation",
+      "fr_name": "Transport"
+    },
+    {
+      "id": 185,
+      "en_name": "Travel",
+      "fr_name": "Voyage"
+    },
+    {
+      "id": 186,
+      "en_name": "Tropical",
+      "fr_name": "Tropical"
+    },
+    {
+      "id": 187,
+      "en_name": "Vacation",
+      "fr_name": "Vacances"
+    },
+    {
+      "id": 188,
+      "en_name": "Valentine's Day",
+      "fr_name": "Saint-Valentin"
+    },
+    {
+      "id": 189,
+      "en_name": "Vintage",
+      "fr_name": "Rétro"
+    },
+    {
+      "id": 190,
+      "en_name": "Volleyball",
+      "fr_name": "Volleyball"
+    },
+    {
+      "id": 191,
+      "en_name": "Walking",
+      "fr_name": "Marche"
+    },
+    {
+      "id": 192,
+      "en_name": "Water Sports",
+      "fr_name": "Sports nautiques"
+    },
+    {
+      "id": 193,
+      "en_name": "Weather",
+      "fr_name": "Météo"
+    },
+    {
+      "id": 194,
+      "en_name": "Wedding",
+      "fr_name": "Mariage"
+    },
+    {
+      "id": 195,
+      "en_name": "Western",
+      "fr_name": "Western"
+    },
+    {
+      "id": 196,
+      "en_name": "Winter",
+      "fr_name": "Hiver"
+    },
+    {
+      "id": 197,
+      "en_name": "Wrestling",
+      "fr_name": "Lutte"
+    },
+    {
+      "id": 198,
+      "en_name": "Writing",
+      "fr_name": "Écriture"
+    },
+    {
+      "id": 199,
+      "en_name": "Yoga",
+      "fr_name": "Yoga"
+    }
+  ]
+}
