@@ -13,6 +13,8 @@ use Stichoza\GoogleTranslate\GoogleTranslate;
 
 class Products
 {
+    private const PRODUCTS_PER_BATCH = 100;
+
     // ---------------------------------------------------------
     // FONCTION DE DEBUG : ENVOIE var_dump DANS php_errors.log
     // ---------------------------------------------------------
@@ -272,13 +274,10 @@ public function getProducts($page, $query, $categories, $colors, $themes = []) {
         $whereClauses[] = "P.active = 1";
     }
 
-    // 2. Gestion de la pagination
-    $itemsPerPage = 20;
-    $limitSql = "";
-    if ($page && is_numeric($page) && $page >= 1) {
-        $offset = ($page - 1) * $itemsPerPage;
-        $limitSql = " LIMIT $offset, $itemsPerPage";
-    }
+    // Pagination interne par lots, utilisée par le défilement infini.
+    $page = max(1, (int)$page);
+    $offset = ($page - 1) * self::PRODUCTS_PER_BATCH;
+    $limitSql = " LIMIT $offset, " . self::PRODUCTS_PER_BATCH;
 
     $pdo->exec("SET SESSION group_concat_max_len = 1000000;");
 
@@ -624,6 +623,7 @@ public function getProducts($page, $query, $categories, $colors, $themes = []) {
     echo json_encode([
         'success'           => true,
         'totalProducts'     => (int)$totalProducts,
+        'itemsPerPage'      => self::PRODUCTS_PER_BATCH,
         'products'          => $products,
         'categories'        => $allCategories,
         'colors'            => $allColors,

@@ -275,7 +275,6 @@ document.addEventListener("DOMContentLoaded", function () {
                                ${isDisabled ? 'disabled' : ''}>
                         <label>
                             <span class="cat-label-fr">${escapeHTML(frName)}</span>
-                            <small class="cat-label-en" style="color: #888; font-size: 0.85em; display: none; margin-left: 4px;"></small>
                         </label>
                     </div>`;
 
@@ -482,8 +481,11 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         if (data.totalProducts !== undefined) {
-          generatePagination(data.totalProducts, activePage);
-          initInfiniteScroll(activePage, data.totalProducts);
+          initInfiniteScroll(
+            activePage,
+            data.totalProducts,
+            data.itemsPerPage,
+          );
         }
       }
 
@@ -529,15 +531,11 @@ function filterList(input, containerId) {
 
         const normFr = item.getAttribute('data-fr-normalized');
         const normEn = item.getAttribute('data-en-normalized');
-        const rawEn = item.getAttribute('data-en') || '';
-        const rawFr = item.getAttribute('data-fr') || '';
-        const enLabelSpan = item.querySelector('.cat-label-en');
 
         // Cas des catégories avec gestion bilingue et sans accents
         if (normFr !== null || normEn !== null) {
             if (!filter) {
                 item.style.display = "";
-                if (enLabelSpan) enLabelSpan.style.display = "none";
                 continue;
             }
 
@@ -547,22 +545,11 @@ function filterList(input, containerId) {
             if (matchFr) {
                 // Priorité 1 : trouvé en français
                 item.style.display = "";
-                if (enLabelSpan && rawEn && rawEn.toLowerCase() !== rawFr.toLowerCase()) {
-                    enLabelSpan.textContent = `(${rawEn})`;
-                    enLabelSpan.style.display = "inline";
-                } else if (enLabelSpan) {
-                    enLabelSpan.style.display = "none";
-                }
             } else if (matchEn) {
                 // Priorité 2 : trouvé en anglais
                 item.style.display = "";
-                if (enLabelSpan) {
-                    enLabelSpan.textContent = `(${rawEn})`;
-                    enLabelSpan.style.display = "inline";
-                }
             } else {
                 item.style.display = "none";
-                if (enLabelSpan) enLabelSpan.style.display = "none";
             }
         } else {
             // Repli pour les couleurs (qui bénéficient aussi de la suppression des accents)
@@ -575,47 +562,6 @@ function filterList(input, containerId) {
             }
         }
     }
-}
-
-function generatePagination(totalProducts, activePage) {
-  updatePaginationDisplay(activePage, totalProducts);
-}
-
-function updatePaginationDisplay(activePage, totalProducts) {
-  const productsPerPage = 20;
-  const pageCount = Math.ceil(totalProducts / productsPerPage);
-  const pagesSection = document.getElementById("pages-section");
-  if (!pagesSection) return;
-
-  pagesSection.innerHTML = "";
-
-  const prevPage = activePage - 2;
-  pagesSection.innerHTML +=
-    prevPage >= 1 ?
-      `<a class="page-nav" href="?page=${prevPage}">&lt;</a>`
-    : `<a class="page-nav disabled" style="display:none;">&lt;</a>`;
-
-  if (activePage - 1 >= 1) {
-    pagesSection.innerHTML += `<a href='?page=${activePage - 1}'>${activePage - 1}</a>`;
-  }
-
-  pagesSection.innerHTML += `<a class='active' href='?page=${activePage}'>${activePage}</a>`;
-
-  if (activePage + 1 <= pageCount) {
-    pagesSection.innerHTML += `<a href='?page=${activePage + 1}'>${activePage + 1}</a>`;
-  }
-
-  const nextPage = activePage + 2;
-  pagesSection.innerHTML +=
-    nextPage <= pageCount ?
-      `<a class="page-nav" href="?page=${nextPage}">&gt;</a>`
-    : `<a class="page-nav disabled" style="display:none;">&gt;</a>`;
-
-  if (pageCount <= 1) {
-    pagesSection
-      .querySelectorAll(".page-nav")
-      .forEach((el) => (el.style.display = "none"));
-  }
 }
 
 function switchThumbnailOnDemand(uniqueCardId, direction) {
@@ -883,54 +829,26 @@ function showSkeletons(container, count = 8) {
   container.innerHTML = skeletonsHtml;
 }
 
-// --- INF SCROLL DYNAMIQUE MIS À JOUR PAR NOMBRE DE PRODUITS DEFILEMENT ---
-function initInfiniteScroll(currentPage, totalProducts) {
-  const productsPerPage = 20;
+// Chargement des lots suivants au défilement, sans pagination visible.
+function initInfiniteScroll(currentPage, totalProducts, productsPerPage) {
+  if (!Number.isInteger(productsPerPage) || productsPerPage < 1) {
+    console.error("Taille de lot invalide pour le chargement des produits.");
+    return;
+  }
+
   const pageCount = Math.ceil(totalProducts / productsPerPage);
 
   const productContainer = document.getElementById("products-container");
-  const pagesSection = document.getElementById("pages-section");
-  if (!pagesSection || !productContainer) return;
+  if (!productContainer) return;
 
   let loadingNext = false;
   let nextPage = currentPage + 1;
 
-  // Observer basé sur la position exacte des cartes (calcul dynamique selon 20 cartes par page)
-  const urlObserver = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          const allCards = Array.from(productContainer.children);
-          const index = allCards.indexOf(entry.target);
-          if (index !== -1) {
-            // Calcul dynamique de la page selon l'index du produit défilé
-            const calculatedPage = Math.floor(index / productsPerPage) + 1;
-            const params = new URLSearchParams(window.location.search);
-
-            if (params.get("page") != calculatedPage) {
-              params.set("page", calculatedPage);
-              window.history.replaceState(null, "", "?" + params.toString());
-              updatePaginationDisplay(calculatedPage, totalProducts);
-            }
-          }
-        }
-      });
-    },
-    { threshold: 0.5 },
-  );
-
-  // Observer toutes les cartes actuellement dans le conteneur
-  productContainer.querySelectorAll(".product-card").forEach((card) => {
-    urlObserver.observe(card);
-  });
-
   if (currentPage < pageCount) {
     const sentinelNext = document.createElement("div");
+    sentinelNext.className = "products-load-sentinel";
     sentinelNext.style.cssText = "height:1px; margin-top:40px;";
-    pagesSection.parentNode.insertBefore(
-      sentinelNext,
-      pagesSection.nextSibling,
-    );
+    productContainer.appendChild(sentinelNext);
 
     const observerNext = new IntersectionObserver(
       (entries) => {
@@ -941,6 +859,12 @@ function initInfiniteScroll(currentPage, totalProducts) {
         }
 
         loadingNext = true;
+        const batchSkeletons = Array.from({ length: 8 }, () => {
+          const skeleton = document.createElement("div");
+          skeleton.className = "skeleton-card batch-skeleton";
+          productContainer.insertBefore(skeleton, sentinelNext);
+          return skeleton;
+        });
 
         const searchParams = new URLSearchParams(window.location.search);
         const query = searchParams.get("query") || "";
@@ -952,7 +876,15 @@ function initInfiniteScroll(currentPage, totalProducts) {
         )
           .then((r) => r.json())
           .then((data) => {
-            if (!data || !data.success) return;
+            batchSkeletons.forEach((skeleton) => skeleton.remove());
+            if (!data || !data.success || !Array.isArray(data.products)) {
+              throw new Error("Réponse invalide lors du chargement des produits.");
+            }
+            if (data.products.length === 0) {
+              observerNext.disconnect();
+              sentinelNext.remove();
+              return;
+            }
 
             data.products.forEach((product) => {
               const baseSku = product.sku;
@@ -967,11 +899,6 @@ function initInfiniteScroll(currentPage, totalProducts) {
                 .toFixed(2)
                 .replace(".", ",");
               let activeHtml = product.active == 0 ? "notActive" : "";
-              const supplierName =
-                product.supplier && product.supplier.name ?
-                  product.supplier.name
-                : "";
-
               let colorsToRender = [null];
 
               colorsToRender.forEach((currentColor) => {
@@ -1022,8 +949,7 @@ function initInfiniteScroll(currentPage, totalProducts) {
                 <div class="color-thumbnails-wrapper"></div>
               `;
 
-                productContainer.appendChild(card);
-                urlObserver.observe(card); // Observer les nouvelles cartes pour la pagination
+                productContainer.insertBefore(card, sentinelNext);
 
                 setTimeout(() => {
                   const infoWrapper = card.querySelector(
@@ -1070,11 +996,21 @@ function initInfiniteScroll(currentPage, totalProducts) {
 
             nextPage++;
             loadingNext = false;
-            if (nextPage > pageCount) observerNext.disconnect();
+            if (nextPage > pageCount) {
+              observerNext.disconnect();
+              sentinelNext.remove();
+            }
           })
           .catch((err) => {
             console.error("Erreur scroll infini:", err);
-            loadingNext = false;
+            batchSkeletons.forEach((skeleton) => skeleton.remove());
+            observerNext.disconnect();
+            sentinelNext.remove();
+            const errorMessage = document.createElement("p");
+            errorMessage.className = "products-load-error";
+            errorMessage.textContent =
+              "Impossible de charger les produits suivants. Rechargez la page pour réessayer.";
+            productContainer.appendChild(errorMessage);
           });
       },
       { rootMargin: "0px 0px 300px 0px" },

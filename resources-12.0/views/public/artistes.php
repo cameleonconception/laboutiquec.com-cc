@@ -49,9 +49,6 @@
             <div id="toggle-filter-section" onclick="toggleFilterSection()" class="">Filtres<img src="<?php echo $staticResources;?>/default/icons/black/filter-2.png"></div>
             <div id="filter-section"></div>
             <div id="products-container"></div>
-
-        <div id="pages-section">
-        </div>
         <?php
             if($logged && $admin){
                 echo `<button id='addPoductBtn'>+</button>`;
@@ -64,7 +61,6 @@
 <?php
     require_once($absoluteResources.'/layouts/footer.php');
 ?>
-
 
 
 

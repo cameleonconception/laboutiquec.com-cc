@@ -80,8 +80,6 @@
         <div id="ownedCategory"></div>
 
         <div id="products-container"></div>
-
-        <div id="pages-section"></div>
         <?php
             if($logged && $admin){
                 echo `<button id='addPoductBtn'>+</button>`;
