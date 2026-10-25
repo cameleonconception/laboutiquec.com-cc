@@ -14,6 +14,7 @@ use Stichoza\GoogleTranslate\GoogleTranslate;
 class Products
 {
     private const PRODUCTS_PER_BATCH = 100;
+    private const SAGE_PRODUCTS_CACHE_TTL = 432000;
 
     // ---------------------------------------------------------
     // FONCTION DE DEBUG : ENVOIE var_dump DANS php_errors.log
@@ -662,6 +663,237 @@ private function translateToEnglish(string $text): string
     }
 }
 
+private function getSageProductsCachePath(array $requestData): string
+{
+    $cacheDirectory = dirname(__DIR__, 2)
+        . DIRECTORY_SEPARATOR . 'controllers'
+        . DIRECTORY_SEPARATOR . 'json'
+        . DIRECTORY_SEPARATOR . 'sage';
+    $cacheIdentity = [
+        'serviceId' => $requestData['serviceId'],
+        'apiVer' => $requestData['apiVer'],
+        'account' => $requestData['auth']['acctId'] . ':' . $requestData['auth']['loginId'],
+        'search' => $requestData['search']
+    ];
+    $cacheKey = hash('sha256', serialize($cacheIdentity));
+
+    return $cacheDirectory . DIRECTORY_SEPARATOR . $cacheKey . '.json';
+}
+
+private function readSageProductsCache(string $cachePath): ?array
+{
+    if (!is_file($cachePath)) {
+        return null;
+    }
+
+    $cacheFile = @fopen($cachePath, 'rb');
+    if ($cacheFile === false) {
+        error_log('Impossible de lire le cache Sage : ' . $cachePath);
+        return null;
+    }
+    if (!flock($cacheFile, LOCK_SH)) {
+        fclose($cacheFile);
+        error_log('Impossible de verrouiller le cache Sage en lecture : ' . $cachePath);
+        return null;
+    }
+
+    $cacheContents = stream_get_contents($cacheFile);
+    flock($cacheFile, LOCK_UN);
+    fclose($cacheFile);
+
+    if ($cacheContents === false) {
+        error_log('Impossible de lire le contenu du cache Sage : ' . $cachePath);
+        return null;
+    }
+
+    $cacheEntry = json_decode($cacheContents, true);
+    if (!is_array($cacheEntry)) {
+        error_log('Cache Sage JSON invalide : ' . $cachePath);
+        return null;
+    }
+
+    $cachedAt = $cacheEntry['cachedAtTimestamp'] ?? null;
+    $cachedResponse = $cacheEntry['response'] ?? null;
+    if (
+        !is_int($cachedAt)
+        || !is_array($cachedResponse)
+        || empty($cachedResponse['ok'])
+        || !isset($cachedResponse['products'])
+        || !is_array($cachedResponse['products'])
+    ) {
+        error_log('Structure de cache Sage invalide : ' . $cachePath);
+        return null;
+    }
+
+    $cacheAge = time() - $cachedAt;
+    if ($cacheAge < 0 || $cacheAge >= self::SAGE_PRODUCTS_CACHE_TTL) {
+        return null;
+    }
+
+    return $cachedResponse;
+}
+
+private function writeSageProductsCache(string $cachePath, array $response): void
+{
+    $cacheDirectory = dirname($cachePath);
+    if (!is_dir($cacheDirectory) && !@mkdir($cacheDirectory, 0755, true) && !is_dir($cacheDirectory)) {
+        error_log('Impossible de créer le répertoire de cache Sage : ' . $cacheDirectory);
+        return;
+    }
+
+    $cachedAt = time();
+    $cacheContents = json_encode([
+        'cachedAt' => gmdate('c', $cachedAt),
+        'cachedAtTimestamp' => $cachedAt,
+        'response' => $response
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION);
+
+    if ($cacheContents === false) {
+        error_log('Impossible d’encoder la réponse Sage pour le cache : ' . json_last_error_msg());
+        return;
+    }
+
+    $cacheFile = @fopen($cachePath, 'c+b');
+    if ($cacheFile === false) {
+        error_log('Impossible d’ouvrir le fichier de cache Sage : ' . $cachePath);
+        return;
+    }
+    if (!flock($cacheFile, LOCK_EX)) {
+        fclose($cacheFile);
+        error_log('Impossible de verrouiller le cache Sage en écriture : ' . $cachePath);
+        return;
+    }
+
+    $writeSucceeded = ftruncate($cacheFile, 0) && rewind($cacheFile);
+    $written = 0;
+    $contentLength = strlen($cacheContents);
+    while ($writeSucceeded && $written < $contentLength) {
+        $bytesWritten = fwrite($cacheFile, substr($cacheContents, $written));
+        if ($bytesWritten === false || $bytesWritten === 0) {
+            $writeSucceeded = false;
+            break;
+        }
+        $written += $bytesWritten;
+    }
+    if ($writeSucceeded) {
+        $writeSucceeded = fflush($cacheFile);
+    }
+
+    flock($cacheFile, LOCK_UN);
+    fclose($cacheFile);
+
+    if (!$writeSucceeded) {
+        error_log('Échec de l’écriture du cache Sage : ' . $cachePath);
+    }
+}
+
+private function logSageProductsUsage(
+    array $categories,
+    array $themes,
+    array $colors,
+    string $query,
+    int $page
+): void {
+    $sageDirectory = dirname(__DIR__, 2)
+        . DIRECTORY_SEPARATOR . 'controllers'
+        . DIRECTORY_SEPARATOR . 'json'
+        . DIRECTORY_SEPARATOR . 'sage';
+    if (!is_dir($sageDirectory) && !@mkdir($sageDirectory, 0755, true) && !is_dir($sageDirectory)) {
+        error_log('Impossible de créer le répertoire du journal Sage : ' . $sageDirectory);
+        return;
+    }
+
+    $normalizeValues = static function (array $values): array {
+        $normalized = array_values(array_unique(array_filter(
+            array_map(static fn($value) => trim((string)$value), $values),
+            static fn($value) => $value !== ''
+        )));
+        sort($normalized, SORT_STRING);
+        return $normalized;
+    };
+
+    $filters = [
+        'categories' => $normalizeValues($categories),
+        'themes' => $normalizeValues($themes),
+        'colors' => $normalizeValues($colors),
+        'query' => trim($query)
+    ];
+    $searchKey = hash('sha256', serialize($filters));
+    $usagePath = $sageDirectory . DIRECTORY_SEPARATOR . 'usage.json';
+    $usageFile = @fopen($usagePath, 'c+b');
+    if ($usageFile === false) {
+        error_log('Impossible d’ouvrir le journal d’utilisation Sage : ' . $usagePath);
+        return;
+    }
+    if (!flock($usageFile, LOCK_EX)) {
+        fclose($usageFile);
+        error_log('Impossible de verrouiller le journal d’utilisation Sage : ' . $usagePath);
+        return;
+    }
+
+    rewind($usageFile);
+    $contents = stream_get_contents($usageFile);
+    $usageData = $contents === false || trim($contents) === ''
+        ? ['version' => 1, 'queries' => []]
+        : json_decode($contents, true);
+    if (
+        !is_array($usageData)
+        || !isset($usageData['queries'])
+        || !is_array($usageData['queries'])
+    ) {
+        error_log('Journal d’utilisation Sage JSON invalide; il sera recréé : ' . $usagePath);
+        $usageData = ['version' => 1, 'queries' => []];
+    }
+
+    $now = time();
+    $timestamp = gmdate('c', $now);
+    $previousEntry = $usageData['queries'][$searchKey] ?? null;
+    $usageData['queries'][$searchKey] = [
+        'categories' => $filters['categories'],
+        'themes' => $filters['themes'],
+        'colors' => $filters['colors'],
+        'query' => $filters['query'],
+        'count' => is_array($previousEntry) ? (int)($previousEntry['count'] ?? 0) + 1 : 1,
+        'firstUsedAt' => is_array($previousEntry)
+            ? ($previousEntry['firstUsedAt'] ?? $timestamp)
+            : $timestamp,
+        'lastUsedAt' => $timestamp,
+        'lastPage' => $page
+    ];
+
+    $json = json_encode(
+        $usageData,
+        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT
+    );
+    if ($json === false) {
+        error_log('Impossible d’encoder le journal Sage : ' . json_last_error_msg());
+        flock($usageFile, LOCK_UN);
+        fclose($usageFile);
+        return;
+    }
+
+    $writeSucceeded = ftruncate($usageFile, 0) && rewind($usageFile);
+    $written = 0;
+    $contentLength = strlen($json);
+    while ($writeSucceeded && $written < $contentLength) {
+        $bytesWritten = fwrite($usageFile, substr($json, $written));
+        if ($bytesWritten === false || $bytesWritten === 0) {
+            $writeSucceeded = false;
+            break;
+        }
+        $written += $bytesWritten;
+    }
+    if ($writeSucceeded) {
+        $writeSucceeded = fflush($usageFile);
+    }
+
+    flock($usageFile, LOCK_UN);
+    fclose($usageFile);
+    if (!$writeSucceeded) {
+        error_log('Échec de l’écriture du journal Sage : ' . $usagePath);
+    }
+}
+
 
 public function getSageProducts($page = 1, $query = '', $categories = [], $themes = [], $colors = [])
 {
@@ -723,6 +955,29 @@ public function getSageProducts($page = 1, $query = '', $categories = [], $theme
         "search"    => $searchPayload
     ];
 
+    $this->logSageProductsUsage(
+        $categoriesList,
+        $themesList,
+        $colorsList,
+        $cleanQuery,
+        max(1, (int)$page)
+    );
+
+    $cachePath = $this->getSageProductsCachePath($data);
+    $cachedResponse = $this->readSageProductsCache($cachePath);
+    if ($cachedResponse !== null) {
+        $cachedJson = json_encode(
+            $cachedResponse,
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION
+        );
+        if ($cachedJson !== false) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo $cachedJson;
+            exit;
+        }
+        error_log('Impossible de sérialiser la réponse du cache Sage : ' . json_last_error_msg());
+    }
+
     $jsonData = json_encode($data);
 
     $ch = curl_init($url);
@@ -743,6 +998,17 @@ public function getSageProducts($page = 1, $query = '', $categories = [], $theme
         http_response_code(500);
         echo json_encode(["ok" => false, "error" => "Erreur cURL : " . $error]);
         exit;
+    }
+
+    $responseData = json_decode($response, true);
+    if (
+        $httpCode === 200
+        && is_array($responseData)
+        && !empty($responseData['ok'])
+        && isset($responseData['products'])
+        && is_array($responseData['products'])
+    ) {
+        $this->writeSageProductsCache($cachePath, $responseData);
     }
 
     header('Content-Type: application/json; charset=utf-8');
