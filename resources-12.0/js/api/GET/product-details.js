@@ -180,6 +180,7 @@ function showDetailsSkeleton(container) {
 // LOGIQUE GESTION DES IMAGES ET CARROUSEL
 // ----------------------------------------------------------------------
 
+
 function slideProductImage(direction) {
     const slideshowContainer = document.querySelector('.slideshowContainer');
     if (!slideshowContainer) return;

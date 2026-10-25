@@ -489,11 +489,11 @@ public function getProducts($page, $query, $categories, $colors) {
 // -------------------------------------------------------------------------
     // RÉCUPÉRATION BDD LOCALE ET NORMALISATION fr_name / en_name
     // -------------------------------------------------------------------------
-    $baseWhereRole = ((int)$userRole === 2) ? "P.active IN (0, 1)" : "P.active = 1";
+   $baseWhereRole = ((int)$userRole === 2) ? "P.active IN (0, 1)" : "P.active = 1";
 
     $rawCategories = $pdo->query("SELECT DISTINCT C.id, C.name FROM categories C JOIN product_category pc ON C.id = pc.category_id JOIN products P ON pc.product_id = P.id WHERE $baseWhereRole ORDER BY C.name ASC")->fetchAll(PDO::FETCH_ASSOC);
 
-    // Formatage avec name, fr_name et en_name pour les catégories de la base locale
+    // Formatage avec name, fr_name, en_name, param et origin ('bd') pour la base locale
     $allCategories = [];
     foreach ($rawCategories as $cat) {
         $catName = trim($cat['name']);
@@ -501,7 +501,9 @@ public function getProducts($page, $query, $categories, $colors) {
             'id'      => $cat['id'],
             'name'    => $catName,
             'fr_name' => $catName,
-            'en_name' => $catName
+            'en_name' => $catName,
+            'param'   => 'categorie',
+            'origin'  => 'bd'
         ];
     }
 
@@ -510,7 +512,7 @@ public function getProducts($page, $query, $categories, $colors) {
     $allSuppliers = $pdo->query("SELECT id, name, shippingCost, freeShippingAt FROM suppliers ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
 
     // -------------------------------------------------------------------------
-    // CHARGEMENT DES CATÉGORIES ET THÈMES SAGE AVEC fr_name ET en_name
+    // CHARGEMENT DES CATÉGORIES ET THÈMES SAGE AVEC fr_name, en_name ET origin ('sage')
     // -------------------------------------------------------------------------
     // 1. Catégories Sage
     $categoriesJsonPath = 'controllers/json/sageCategories.json';
@@ -552,7 +554,8 @@ public function getProducts($page, $query, $categories, $colors) {
         $allCategories
     );
 
-    $appendSageItems = function(array $items, string $prefix) use (&$allCategories, &$existingNames) {
+    // Fonction d'ajout avec support de param ('categorie'/'theme') et origin ('sage')
+    $appendSageItems = function(array $items, string $prefix, string $paramType) use (&$allCategories, &$existingNames) {
         foreach ($items as $item) {
             $frName = trim($item['fr_name'] ?? $item['name'] ?? '');
             $enName = trim($item['en_name'] ?? $item['name'] ?? '');
@@ -568,7 +571,9 @@ public function getProducts($page, $query, $categories, $colors) {
                         'id'      => $item['id'] ?? ($prefix . '_' . md5($checkKey)),
                         'name'    => $displayName,
                         'fr_name' => $frName !== '' ? $frName : $displayName,
-                        'en_name' => $enName !== '' ? $enName : $displayName
+                        'en_name' => $enName !== '' ? $enName : $displayName,
+                        'param'   => $paramType,
+                        'origin'  => 'sage'
                     ];
                     $existingNames[] = $checkKey;
                 }
@@ -576,9 +581,9 @@ public function getProducts($page, $query, $categories, $colors) {
         }
     };
 
-    // Insertion des catégories Sage et des thèmes Sage
-    $appendSageItems($sageCategoriesItems, 'sage_cat');
-    $appendSageItems($sageThemeItems, 'sage_theme');
+    // Insertion des catégories Sage (param: categorie, origin: sage) et des thèmes Sage (param: theme, origin: sage)
+    $appendSageItems($sageCategoriesItems, 'sage_cat', 'categorie');
+    $appendSageItems($sageThemeItems, 'sage_theme', 'theme');
 
     // Tri alphabétique final basé sur le nom affiché
     usort($allCategories, fn($a, $b) => strcoll($a['name'], $b['name']));
@@ -598,8 +603,7 @@ public function getProducts($page, $query, $categories, $colors) {
         'appliedColors'     => array_values($allColorsToSearch)
     ]);
     exit();
-}
-
+    }
 /**
  * Helper privé pour exécuter la requête cURL vers Sage et retourner le tableau d'items
  */
