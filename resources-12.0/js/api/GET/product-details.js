@@ -482,6 +482,7 @@ function switchMainImage(targetIndex) {
     const colorSelect = document.getElementById('color-select');
     updateArrowVisibility(colorSelect ? colorSelect.value : "");
     filterLogosByImage();
+    updateActiveThumbnailWithLogos();
     updateLivePriceDisplay();
 }
 
@@ -523,10 +524,13 @@ function updateActiveThumbnailWithLogos() {
 
     const images = Array.from(document.querySelectorAll('.slideshowContainer img'));
     const thumbnails = Array.from(verticalContainer.querySelectorAll('.side-thumbnail'));
+    const activeOption = document.querySelector('.personalization-option.active');
+    const isCustomMode = activeOption && activeOption.dataset.name === 'Personnalisé';
     images.forEach((image, index) => {
         const overlay = thumbnails[index]?.parentElement.querySelector('.thumb-logo-overlay');
         if (!overlay) return;
         overlay.innerHTML = '';
+        if (isCustomMode) return;
 
         canvas.getObjects()
             .filter(obj => obj.imageOwner === image.src)
@@ -1602,7 +1606,6 @@ function setupUploadListener() {
         canvas.on('object:modified', () => {
             syncLogoLetterMarker(canvas.getActiveObject());
             updateLivePriceDisplay();
-            updateActiveThumbnailWithLogos();
         });
     }
 }
@@ -1686,7 +1689,6 @@ function deleteLogo(id) {
         updateSourceFileMarkerLetters();
         updateTotalLogoCounter();
         updateLivePriceDisplay(); 
-        updateActiveThumbnailWithLogos(); 
     }
     const listItem = document.getElementById('item_' + id);
     if (listItem) listItem.remove();
@@ -1915,7 +1917,8 @@ function updateSelectedPersonalizationOption(e) {
         }
     }
 
-    updateLivePriceDisplay(); 
+    updateActiveThumbnailWithLogos();
+    updateLivePriceDisplay();
 }
 
 function openAdditionnalInfo(text) {

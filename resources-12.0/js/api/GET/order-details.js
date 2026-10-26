@@ -731,6 +731,11 @@ function generateStudioHTMLForOrder(orderId, item, orderStatus) {
     const views = Array.isArray(design.views) ? design.views : [];
     const sourceFiles = Array.isArray(design.sourceFiles) ? design.sourceFiles : [];
     if (views.length === 0 && sourceFiles.length === 0) return '';
+    const selectedOption = design.selectedPersonalizationOption
+        || (item.studioData && item.studioData.selectedPersonalizationOption)
+        || item.selectedPersonalizationOption
+        || item.personalizationOption;
+    const isCustomMode = selectedOption === 'Personnalisé';
     const escapeSourceName = value => String(value || '').replace(/[&<>"']/g, char => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     }[char]));
@@ -796,7 +801,7 @@ function generateStudioHTMLForOrder(orderId, item, orderStatus) {
                 : 'target="_blank" rel="noopener"';
             return `<li>${escapeSourceName(entry.letter)}-${escapeSourceName(shortName(entry.name))}-<a href="${escapeSourceName(entry.sourceUrl)}" ${linkAttributes} title="Télécharger le fichier source">(sources)</a></li>`;
         }).join('');
-        const markersHtml = item.imgUrl ? viewItems.map(entry => {
+        const markersHtml = item.imgUrl && !isCustomMode ? viewItems.map(entry => {
             const marker = entry.letterMarker;
             if (!marker) return '';
             const border = entry.sourceOnly ? '2px dashed' : '1px dashed';

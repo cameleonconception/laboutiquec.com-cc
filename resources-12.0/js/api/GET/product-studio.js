@@ -386,10 +386,13 @@ function updateActiveThumbnailWithLogos() {
 
     const images = Array.from(document.querySelectorAll('.slideshowContainer img'));
     const thumbnails = Array.from(verticalContainer.querySelectorAll('.side-thumbnail'));
+    const activeOption = document.querySelector('.personalization-option.active');
+    const isCustomMode = activeOption && activeOption.dataset.name === 'Personnalisé';
     images.forEach((image, index) => {
         const overlay = thumbnails[index]?.parentElement.querySelector('.thumb-logo-overlay');
         if (!overlay) return;
         overlay.innerHTML = '';
+        if (isCustomMode) return;
 
         canvas.getObjects()
             .filter(obj => obj.imageOwner === image.src)
@@ -2251,6 +2254,7 @@ if (elementName === "Personnalisé") {
         if (addToCartContainer) addToCartContainer.style.display = "none";
     }
 
+    updateActiveThumbnailWithLogos();
     updateLivePriceDisplay(); 
 }
 

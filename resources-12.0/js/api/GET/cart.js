@@ -702,6 +702,10 @@ function generateStudioHTML(product, designData = null) {
     const views = Array.isArray(designData.views) ? designData.views : [];
     const sourceFiles = Array.isArray(designData.sourceFiles) ? designData.sourceFiles : [];
     if (views.length === 0 && sourceFiles.length === 0) return '';
+    const selectedOption = product.selectedPersonalizationOption
+        || (product.studioData && product.studioData.selectedPersonalizationOption)
+        || designData.selectedPersonalizationOption;
+    const isCustomMode = selectedOption === 'Personnalisé';
     const escapeSourceName = value => String(value || '').replace(/[&<>"']/g, char => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
     }[char]));
@@ -755,7 +759,7 @@ function generateStudioHTML(product, designData = null) {
                 : 'target="_blank" rel="noopener"';
             return `<li>${escapeSourceName(entry.letter)}-${escapeSourceName(shortName(entry.name))}-<a href="${escapeSourceName(entry.sourceUrl)}" ${linkAttributes} title="Télécharger le fichier source">(sources)</a></li>`;
         }).join('');
-        const markersHtml = product.imgUrl ? viewItems.map(entry => {
+        const markersHtml = product.imgUrl && !isCustomMode ? viewItems.map(entry => {
             const marker = entry.letterMarker;
             if (!marker) return '';
             const border = entry.sourceOnly ? '2px dashed' : '1px dashed';
