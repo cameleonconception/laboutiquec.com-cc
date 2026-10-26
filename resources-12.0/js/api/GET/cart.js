@@ -720,8 +720,8 @@ function generateStudioHTML(product, designData = null) {
         return letter;
     };
     const shortName = value => {
-        const baseName = String(value || 'Logo').replace(/\.[^/.]+$/, '');
-        return baseName.length > 6 ? `${baseName.slice(0, 6)}...` : baseName;
+        const fileName = String(value || 'Logo');
+        return fileName.length > 15 ? `${fileName.slice(0, 12)}...` : fileName;
     };
     const letterOrder = value => Array.from(String(value || '')).reduce((total, character) =>
         total * 26 + character.charCodeAt(0) - 64, 0
@@ -757,7 +757,7 @@ function generateStudioHTML(product, designData = null) {
             const linkAttributes = entry.sourceName
                 ? `download="${escapeSourceName(entry.sourceName)}"`
                 : 'target="_blank" rel="noopener"';
-            return `<li>${escapeSourceName(entry.letter)}-${escapeSourceName(shortName(entry.name))}-<a href="${escapeSourceName(entry.sourceUrl)}" ${linkAttributes} title="Télécharger le fichier source">(sources)</a></li>`;
+            return `<li>${escapeSourceName(entry.letter)}) ${escapeSourceName(shortName(entry.name))} ... <a href="${escapeSourceName(entry.sourceUrl)}" ${linkAttributes} title="Télécharger le fichier source">(sources)</a></li>`;
         }).join('');
         const markersHtml = product.imgUrl && !isCustomMode ? viewItems.map(entry => {
             const marker = entry.letterMarker;
@@ -772,16 +772,16 @@ function generateStudioHTML(product, designData = null) {
         
         return `
             <div class="cart-studio-row" style="display: flex; gap: 15px; margin-bottom: 15px; align-items: center;">
-                <div class="cart-preview-item" style="position:relative;display:inline-block;line-height:0;">
+                <div class="cart-preview-item" style="position:relative;display:flex;align-items:center;justify-content:center;line-height:0;">
                     <img src="${imageToDisplay}" 
                         alt="Image Produit Vue ${index + 1}" 
-                        style="width: 100px; height: auto; border-radius: 4px; cursor: pointer; border: 1px solid #ddd;"
+                        style="width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;display:block;margin:auto;border-radius:4px;cursor:pointer;border:1px solid #ddd;"
                         onclick="openPreviewModal('${imageToDisplay}')">
                     ${markersHtml}
                 </div>
                 <div class="cart-logos-info-pale">
                     <p style="font-weight: bold; margin-bottom: 5px;">Vue ${index + 1}</p>
-                    <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.9em; line-height: 1.5;">
+                    <ul class="source-files-list" style="list-style: none; padding: 0; margin: 0; font-size: 0.9em; line-height: 1.5;">
                         ${itemsHtml}
                     </ul>
                 </div>

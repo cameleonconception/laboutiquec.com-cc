@@ -1835,6 +1835,10 @@ color: var(--primary-color);
     font-size: 0.7rem;
 }
 
+.cart-logos-info-pale .source-files-list li::before {
+    content: none;
+}
+
 /* La modale (fond noir) */
 .preview-modal {
     display: none; /* Caché par défaut */
