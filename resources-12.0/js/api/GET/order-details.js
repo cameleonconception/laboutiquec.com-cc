@@ -26,6 +26,25 @@ function formatDateToLocal(utcDateString) {
     return dateObject.toLocaleDateString(navigator.language, options);
 }
 
+function getOrderDesignPreviewPath(order, item, viewIndex, baseUrl) {
+    if (!item.designSignature || item.designSignature === 'null') return '';
+
+    const view = item.studioData && Array.isArray(item.studioData.views)
+        ? item.studioData.views[viewIndex]
+        : null;
+    if (item.studioData && Array.isArray(item.studioData.views) && !view) return '';
+    const previewUrl = view && view.previewUrl ? view.previewUrl : '';
+    if (/^https?:\/\//i.test(previewUrl)) return previewUrl;
+
+    const previewFilename = previewUrl
+        ? previewUrl.split('/').pop()
+        : `preview_v${viewIndex + 1}.png`;
+    const folder = Number(order.status) === 0
+        ? `static-resources/temp-designs/${item.designSignature}/`
+        : `static-resources/orders/${order.id}/${item.designSignature}/`;
+    return `${baseUrl}${folder}${previewFilename}`;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const container = document.getElementById('order-details-container');
     const URL = window.location.search;
@@ -66,9 +85,7 @@ if (packingBtn) {
                 // Priorité à item.imgUrl s'il existe (mode details/Sage), sinon fallback sur l'image studio preview_v1.png
                 let thumbPath = item.imgUrl 
                     ? item.imgUrl 
-                    : ((item.designSignature && item.designSignature !== 'null') 
-                        ? `${baseUrl}static-resources/temp-designs/${item.designSignature}/preview_v1.png`
-                        : '');
+                    : getOrderDesignPreviewPath(order, item, 0, baseUrl);
 
                 // Logique de personnalisation stricte
                 let persoDisplay = '';
@@ -184,15 +201,7 @@ invoiceBtn.addEventListener('click', function() {
     if (items && Array.isArray(items)) {
         items.forEach(item => {
             console.log(item);
-            let thumbPath = (item.designSignature && item.designSignature !== 'null') 
-                ? `${baseUrl}static-resources/temp-designs/${order.id}/${item.designSignature}/preview_v1.png`
-                : '';
-
-            if(order.status === 0){
-                thumbPath = (item.designSignature && item.designSignature !== 'null') 
-                    ? `${baseUrl}static-resources/temp-designs/${item.designSignature}/preview_v1.png`
-                    : '';
-            }
+            const thumbPath = getOrderDesignPreviewPath(order, item, 0, baseUrl);
 
             let persoDisplay = '';
             if (item.studioData && item.studioData.selectedPersonalizationOption) {
@@ -432,11 +441,7 @@ if (epreuveBtn && order) {
                 let imagesHtml = '';
                 if (item.studioData && item.studioData.views) {
                     item.studioData.views.forEach((view, vIdx) => {
-                        let imgPath = `${baseUrl}static-resources/temp-designs/${item.designSignature}/preview_v${vIdx + 1}.png`;
-
-                        if(order.status == 0){
-                        imgPath = `${baseUrl}static-resources/temp-designs/${item.designSignature}/preview_v${vIdx + 1}.png`;
-                        }
+                            const imgPath = getOrderDesignPreviewPath(order, item, vIdx, baseUrl);
                         imagesHtml += `
                             <div class="zoom-wrapper">
                                 <img src="${imgPath}" class="epreuve-image">
@@ -722,69 +727,114 @@ function generateStudioHTMLForOrder(orderId, item, orderStatus) {
 
     // 3. Récupération des données studio et vérification des vues
     const design = item.studioData;
-    if (!design || !design.views) return '';
-
-    // 4. Détermination du mode de personnalisation sélectionné
-    const selectedOption = (design && design.selectedPersonalizationOption)
-        || item.selectedPersonalizationOption
-        || item.personalizationOption;
-
-    const isCustomMode = selectedOption === "Personnalisé";
+    if (!design) return '';
+    const views = Array.isArray(design.views) ? design.views : [];
+    const sourceFiles = Array.isArray(design.sourceFiles) ? design.sourceFiles : [];
+    if (views.length === 0 && sourceFiles.length === 0) return '';
+    const escapeSourceName = value => String(value || '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[char]));
+    const isUnpaid = Number(orderStatus) === 0;
+    const designDirectory = isUnpaid
+        ? `static-resources/temp-designs/${item.designSignature}/`
+        : `static-resources/orders/${orderId}/${item.designSignature}/`;
+    const getLetter = index => {
+        let number = index + 1;
+        let letter = '';
+        while (number > 0) {
+            number--;
+            letter = String.fromCharCode(65 + (number % 26)) + letter;
+            number = Math.floor(number / 26);
+        }
+        return letter;
+    };
+    const letterOrder = value => Array.from(String(value || '')).reduce((total, character) =>
+        total * 26 + character.charCodeAt(0) - 64, 0
+    );
+    const shortName = value => {
+        const baseName = String(value || 'Logo').replace(/\.[^/.]+$/, '');
+        return baseName.length > 6 ? `${baseName.slice(0, 6)}...` : baseName;
+    };
+    let fallbackLetterIndex = 0;
 
     // 5. Construction des rangées par vue
-    let viewRows = design.views.map((view, index) => {
+    let viewRows = views.map((view, index) => {
         // Sélection de la source d'image : Priorité à item.imgUrl, sinon preview_vX.png
-        let imagePath = item.imgUrl 
-            ? item.imgUrl 
-            : `static-resources/temp-designs/${item.designSignature}/preview_v${index + 1}.png`;
+        const previewUrl = view.previewUrl || '';
+        const previewFilename = previewUrl ? previewUrl.split('/').pop() : `preview_v${index + 1}.png`;
+        let imagePath = item.imgUrl
+            ? item.imgUrl
+            : (/^https?:\/\//i.test(previewUrl) ? previewUrl : `${designDirectory}${previewFilename}`);
         
-        // Génération de la liste des logos pour chaque vue
-        const logosHtml = view.logos.map((l, logoIndex) => {
-            let logoPath = `static-resources/temp-designs/${item.designSignature}/logo_v${index + 1}_n${logoIndex + 1}.png`;
-
-            if (isCustomMode) {
-                return `
-                    <li>
-                        <span>Logo #${logoIndex + 1} ....</span> 
-                        <a href="${logoPath}" target="_blank" title="Voir l'image source originale">
-                            (source)
-                        </a>
-                    </li>`;
-            } else {
-                const dimW = l.width || '0';
-                const dimH = l.height || '0';
-                return `
-                    <li>
-                        <span>${dimW}" x ${dimH}" ....</span> 
-                        <a href="${logoPath}" target="_blank" title="Voir l'image source originale">
-                            (source)
-                        </a>
-                    </li>`;
-            }
+        const markers = Array.isArray(view.markers) ? view.markers : [];
+        const viewItems = [
+            ...view.logos.map((logo, logoIndex) => ({
+                letter: logo.letter || getLetter(fallbackLetterIndex++),
+                name: logo.name || logo.sourceName || 'Logo',
+                sourceUrl: logo.sourceFilename
+                    ? `${designDirectory}${logo.sourceFilename}`
+                    : (logo.sourceUrl || `${designDirectory}logo_v${index + 1}_n${logoIndex + 1}.png`),
+                sourceName: logo.sourceName || logo.name,
+                letterMarker: logo.letterMarker,
+                sourceOnly: false
+            })),
+            ...markers.map(marker => {
+                const source = sourceFiles.find(file => file.key === marker.sourceKey);
+                return {
+                    letter: marker.letter || getLetter(fallbackLetterIndex++),
+                    name: marker.name || (source ? source.name : 'Fichier source'),
+                    sourceUrl: source && source.filename ? `${designDirectory}${source.filename}` : (source ? source.url : ''),
+                    sourceName: source ? source.name : marker.name,
+                    letterMarker: marker,
+                    sourceOnly: true
+                };
+            })
+        ].sort((first, second) => letterOrder(first.letter) - letterOrder(second.letter));
+        const itemsHtml = viewItems.map(entry => {
+            const linkAttributes = entry.sourceName
+                ? `download="${escapeSourceName(entry.sourceName)}"`
+                : 'target="_blank" rel="noopener"';
+            return `<li>${escapeSourceName(entry.letter)}-${escapeSourceName(shortName(entry.name))}-<a href="${escapeSourceName(entry.sourceUrl)}" ${linkAttributes} title="Télécharger le fichier source">(sources)</a></li>`;
         }).join('');
+        const markersHtml = item.imgUrl ? viewItems.map(entry => {
+            const marker = entry.letterMarker;
+            if (!marker) return '';
+            const border = entry.sourceOnly ? '2px dashed' : '1px dashed';
+            return `<span style="position:absolute;left:${Number(marker.left) * 100}%;top:${Number(marker.top) * 100}%;width:${Number(marker.width) * 100}%;height:${Number(marker.height) * 100}%;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;box-sizing:border-box;overflow:hidden;background:rgba(220,25,25,.42);border:${border} #b40000;color:#fff;font-family:Arial,sans-serif;font-size:${Math.max(3, Math.min(12, Number(marker.width) * 45))}px;font-weight:bold;pointer-events:none;">${escapeSourceName(entry.letter)}</span>`;
+        }).join('') : '';
 
         return `
             <div class="cart-studio-row" style="display: flex; gap: 15px; margin-bottom: 15px; align-items: center;">
-                <div class="cart-preview-item">
+                <div class="cart-preview-item" style="position:relative;display:inline-block;line-height:0;">
                     <img src="${imagePath}" 
                          alt="Vue ${index + 1}" 
                          style="width: 100px; height: auto; border-radius: 4px; cursor: pointer; border: 1px solid #ddd;"
                          onerror="this.parentElement.innerHTML='<small>Image non disponible</small>'"
                          onclick="openPreviewModal('${imagePath}')">
+                    ${markersHtml}
                 </div>
                 <div class="cart-logos-info-pale">
                     <p style="font-weight: bold; margin-bottom: 5px;">Vue ${index + 1}</p>
                     <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.9em; line-height: 1.5;">
-                        ${logosHtml}
+                        ${itemsHtml}
                     </ul>
                 </div>
             </div>`;
     }).join('');
+    const sourceFilesHtml = views.length === 0 && sourceFiles.length
+        ? `<div class="cart-source-files"><p style="font-weight:bold;">Fichiers source</p><ul style="list-style:none;padding:0;">${sourceFiles.map(source => {
+            const sourcePath = source.filename
+                ? `${designDirectory}${source.filename}`
+                : source.url;
+            return `<li><a href="${sourcePath}" download="${escapeSourceName(source.name)}">${escapeSourceName(source.name)}</a></li>`;
+        }).join('')}</ul></div>`
+        : '';
 
     return `
         <div class="cart-studio-summary" style="border-top: 1px solid #eee; padding-top: 10px; margin-top: 10px;">
             <div class="cart-studio-container">
                 ${viewRows}
+                ${sourceFilesHtml}
             </div>
         </div>
     `;

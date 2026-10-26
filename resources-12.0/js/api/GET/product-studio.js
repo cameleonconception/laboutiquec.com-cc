@@ -1,4 +1,5 @@
 let product = {};
+window.pendingLogoSourceFiles = window.pendingLogoSourceFiles || [];
 // Ajuste ce chiffre : si ton produit fait 10 pouces de large et ton canvas 500px, le ratio est 50.
 let REFERENCE_CANVAS_WIDTH = 3240; 
 let REFERENCE_PPI = 108;
@@ -33,6 +34,99 @@ function parseImageFilename(fileName) {
         timestamp: timestamp,
         fullName: fileName
     };
+}
+
+function updateSourceFileMarkerLetters() {
+    if (!canvas) return;
+
+    const entries = canvas.getObjects().filter(obj =>
+        obj.imageOwner && !obj.logoLetterMarker
+    );
+    entries.forEach((entry, index) => {
+        const letter = getSourceLogoLetter(index);
+        entry.logoLetter = letter;
+        if (entry.sourceFileId) {
+            const sourceFile = window.pendingLogoSourceFiles.find(file => file.id === entry.sourceFileId);
+            if (sourceFile) {
+                sourceFile.letter = letter;
+                const row = document.querySelector(`[data-source-file-id="${sourceFile.id}"]`);
+                const placeholder = row && row.querySelector('.logo-source-placeholder');
+                if (placeholder) {
+                    placeholder.textContent = letter;
+                    placeholder.setAttribute('aria-label', `Repère ${letter}`);
+                }
+            }
+            const label = entry.item(1);
+            if (label) label.set('text', letter);
+        } else {
+            const badge = canvas.getObjects().find(obj =>
+                obj.logoLetterMarker && obj.logoId === entry.id
+            );
+            const label = badge && badge.item(1);
+            if (label) label.set('text', letter);
+        }
+        syncLogoLetterMarker(entry);
+    });
+    canvas.getObjects()
+        .filter(obj => obj.sourceFileMarker)
+        .forEach(marker => canvas.bringToFront(marker));
+    canvas.renderAll();
+}
+
+function syncLogoLetterMarker(logo) {
+    if (!canvas || !logo || logo.sourceFileMarker || logo.logoLetterMarker) return;
+    const badge = canvas.getObjects().find(obj => obj.logoLetterMarker && obj.logoId === logo.id);
+    if (!badge) return;
+
+    const size = Math.max(20, Math.min(30, Math.min(logo.getScaledWidth(), logo.getScaledHeight()) * 0.3));
+    badge.set({
+        left: logo.left - logo.getScaledWidth() / 2 + size / 2,
+        top: logo.top - logo.getScaledHeight() / 2 + size / 2,
+        scaleX: size / 30,
+        scaleY: size / 30
+    });
+    badge.setCoords();
+}
+
+function createLogoLetterMarker(logo) {
+    const rect = new fabric.Rect({
+        width: 30,
+        height: 30,
+        fill: 'rgba(220, 25, 25, 0.42)',
+        stroke: 'rgba(180, 0, 0, 0.9)',
+        strokeWidth: 1.5,
+        strokeDashArray: [5, 3],
+        originX: 'center',
+        originY: 'center'
+    });
+    const label = new fabric.Text(logo.logoLetter || 'A', {
+        fontFamily: 'Arial',
+        fontSize: 13,
+        fontWeight: 'bold',
+        fill: '#fff',
+        originX: 'center',
+        originY: 'center',
+        textAlign: 'center'
+    });
+    const badge = new fabric.Group([rect, label], {
+        id: `logo_letter_${logo.id}`,
+        logoLetterMarker: true,
+        logoId: logo.id,
+        imageOwner: logo.imageOwner,
+        left: logo.left,
+        top: logo.top,
+        originX: 'center',
+        originY: 'center',
+        selectable: true,
+        evented: true,
+        lockMovementX: true,
+        lockMovementY: true,
+        hasControls: false,
+        hasBorders: false,
+        objectCaching: false
+    });
+    canvas.add(badge);
+    syncLogoLetterMarker(logo);
 }
 document.addEventListener('DOMContentLoaded', function() {
     let productContainer = document.getElementById('product-details-container');
@@ -165,6 +259,7 @@ function slideProductImage(direction) {
         }
     }
     
+    syncSourceOnlyLogoList();
     updateArrowVisibility(selectedColor);
     filterLogosByImage();
     updateLivePriceDisplay();
@@ -277,6 +372,7 @@ function updateProductImage(selectedColor) {
     window.scrollTo(top);
     initStudioCanvas();
     setTimeout(filterLogosByImage, 50);
+    syncSourceOnlyLogoList();
 }
 
 /**
@@ -288,34 +384,40 @@ function updateActiveThumbnailWithLogos() {
     const verticalContainer = document.getElementById('vertical-thumbnails-container');
     if (!verticalContainer || !canvas) return;
 
-    const activeWrapper = verticalContainer.querySelector('.side-thumbnail.active')?.parentElement;
-    if (!activeWrapper) return;
+    const images = Array.from(document.querySelectorAll('.slideshowContainer img'));
+    const thumbnails = Array.from(verticalContainer.querySelectorAll('.side-thumbnail'));
+    images.forEach((image, index) => {
+        const overlay = thumbnails[index]?.parentElement.querySelector('.thumb-logo-overlay');
+        if (!overlay) return;
+        overlay.innerHTML = '';
 
-    const overlay = activeWrapper.querySelector('.thumb-logo-overlay');
-    if (!overlay) return;
-
-    overlay.innerHTML = ''; // Nettoyer l'aperçu précédent
-
-    // Récupérer les logos actifs sur cette vue
-    const visibleLogos = canvas.getObjects().filter(obj => obj.visible && obj.imageOwner);
-
-    visibleLogos.forEach(obj => {
-        const imgEl = document.createElement('img');
-        imgEl.src = obj.getElement().src;
-        imgEl.style.position = 'absolute';
-
-        // Calcul des ratios en pourcentage (%) par rapport au canvas principal
-        const leftPercent = (obj.left / canvas.width) * 100;
-        const topPercent = (obj.top / canvas.height) * 100;
-        const widthPercent = (obj.getScaledWidth() / canvas.width) * 100;
-
-        imgEl.style.left = leftPercent + '%';
-        imgEl.style.top = topPercent + '%';
-        imgEl.style.width = widthPercent + '%';
-        imgEl.style.transform = 'translate(-50%, -50%)'; // Pour respecter l'originX/Y center de Fabric
-
-        overlay.appendChild(imgEl);
+        canvas.getObjects()
+            .filter(obj => obj.imageOwner === image.src)
+            .forEach(obj => {
+                if (obj.logoLetterMarker) {
+                    appendThumbnailMarker(overlay, obj, canvas, obj.item(1)?.text || 'A');
+                } else if (obj.sourceFileMarker) {
+                    appendThumbnailMarker(overlay, obj, canvas, obj.item(1)?.text || 'A');
+                } else if (obj.getElement) {
+                    const imgEl = document.createElement('img');
+                    imgEl.src = obj.getElement().src;
+                    imgEl.style.position = 'absolute';
+                    imgEl.style.left = `${(obj.left / canvas.width) * 100}%`;
+                    imgEl.style.top = `${(obj.top / canvas.height) * 100}%`;
+                    imgEl.style.width = `${(obj.getScaledWidth() / canvas.width) * 100}%`;
+                    imgEl.style.height = `${(obj.getScaledHeight() / canvas.height) * 100}%`;
+                    imgEl.style.transform = 'translate(-50%, -50%)';
+                    overlay.appendChild(imgEl);
+                }
+            });
     });
+}
+
+function appendThumbnailMarker(overlay, marker, sourceCanvas, letter) {
+    const markerEl = document.createElement('span');
+    markerEl.textContent = letter;
+    markerEl.style.cssText = `position:absolute;left:${(marker.left / sourceCanvas.width) * 100}%;top:${(marker.top / sourceCanvas.height) * 100}%;width:${(marker.getScaledWidth() / sourceCanvas.width) * 100}%;height:${(marker.getScaledHeight() / sourceCanvas.height) * 100}%;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;box-sizing:border-box;overflow:hidden;background:rgba(220,25,25,.42);border:2px dashed #b40000;color:#fff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;`;
+    overlay.appendChild(markerEl);
 }
 
 function switchMainImage(targetIndex) {
@@ -330,6 +432,7 @@ function switchMainImage(targetIndex) {
     allImages.forEach((img, idx) => {
         img.style.display = (idx === targetIndex) ? 'block' : 'none';
     });
+    syncSourceOnlyLogoList();
 
     if (verticalContainer) {
         const allThumbs = Array.from(verticalContainer.querySelectorAll('.side-thumbnail'));
@@ -430,8 +533,9 @@ function displayProductDetails(product, container, similarProducts) {
                             </div>
                             <span id="logo-counter-badge">0 logo</span>
                         </div>
-                        <input type="file" id="logo-uploader" accept=".png" style="display:none;">
+                        <input type="file" id="logo-uploader" accept=".png,.jpg,.jpeg,.webp,.gif,.bmp,.svg,.ai,.eps,.pdf" style="display:none;">
                         <div id="logo-list-container" style="display:none;"></div>
+                        <div id="source-only-logo-list"></div>
                         <div id="personalization-details"></div>
                     </div>
                     <div class="product-sizes" style='display:none;'></div>
@@ -485,16 +589,6 @@ function displayProductDetails(product, container, similarProducts) {
 
 
     // Écouteurs d'événements de base
-    const uploader = document.getElementById('logo-uploader');
-    uploader.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (file && file.type !== "image/png") {
-            alert("Désolé, seuls les fichiers PNG sont acceptés.");
-            this.value = "";
-            return;
-        }
-    });
-
     const colorSelect = document.getElementById('color-select');
     colorSelect.addEventListener('change', (e) => {
         updateProductSize(e.target.value);
@@ -989,7 +1083,7 @@ function calculateFinalPrice(rawPrice, addedQty, cartSuppQty, cartGlobalOtherSup
  * Calcule uniquement le coût unitaire technique du DTF (MO + Surface)
  */
 function getDTFCostUnit(addedQty, cartSuppQty) {
-    const allLogos = canvas ? canvas.getObjects().filter(obj => obj.imageOwner && obj.visible) : [];
+    const allLogos = canvas ? canvas.getObjects().filter(obj => obj.imageOwner && obj.visible && !obj.sourceFileMarker && !obj.logoLetterMarker) : [];
     const logoCount = allLogos.length;
 
     if (logoCount === 0) return 0;
@@ -1075,7 +1169,7 @@ function getBroderieCostUnit(addedQty, cartSuppQty) {
  * Calcule le coût unitaire technique du UV DTF avec logs de débogage.
  */
 function getUVDTFCostUnit(addedQty, cartSuppQty) {
-    const allLogos = canvas ? canvas.getObjects().filter(obj => obj.imageOwner && obj.visible) : [];
+    const allLogos = canvas ? canvas.getObjects().filter(obj => obj.imageOwner && obj.visible && !obj.sourceFileMarker && !obj.logoLetterMarker) : [];
     const logoCount = allLogos.length;
 
     // console.log("--- DEBUG UV DTF ---");
@@ -1299,7 +1393,22 @@ function setupKeyboardListeners() {
                 break;
             case 'Delete':
             case 'Backspace':
-                // Utilise ton ID unique pour supprimer via ta fonction existante
+                if (activeObject.logoLetterMarker) {
+                    canvas.remove(activeObject);
+                    canvas.discardActiveObject();
+                    updateActiveThumbnailWithLogos();
+                    canvas.requestRenderAll();
+                    e.preventDefault();
+                    return;
+                }
+                if (activeObject.sourceFileMarker) {
+                    canvas.remove(activeObject);
+                    canvas.discardActiveObject();
+                    updateActiveThumbnailWithLogos();
+                    canvas.requestRenderAll();
+                    e.preventDefault();
+                    return;
+                }
                 deleteLogo(activeObject.id);
                 e.preventDefault();
                 break;
@@ -1393,18 +1502,210 @@ function cropTransparentEdges(imgElement) {
     return croppedCanvas.toDataURL('image/png');
 }
 
+function addSourceOnlyLogoFile(file, imageOwner) {
+    const extension = file.name.split('.').pop().toLowerCase();
+    const previewableExtensions = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg'];
+    const sourceFile = {
+        id: `source_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        name: file.name,
+        file,
+        imageOwner,
+        previewUrl: file.type.startsWith('image/') || previewableExtensions.includes(extension)
+            ? URL.createObjectURL(file)
+            : null
+    };
+    sourceFile.letter = getSourceLogoLetter(
+        window.pendingLogoSourceFiles.filter(item => item.imageOwner === imageOwner).length
+    );
+    window.pendingLogoSourceFiles.push(sourceFile);
+    createSourceFileMarker(sourceFile);
+    syncSourceOnlyLogoList();
+
+    const sourceList = document.getElementById('source-only-logo-list');
+    if (!sourceList) return;
+
+    const row = document.createElement('div');
+    row.className = 'logo-item logo-source-item';
+    row.dataset.sourceFileId = sourceFile.id;
+    row.dataset.imageOwner = imageOwner;
+    if (sourceFile.previewUrl) {
+        const preview = document.createElement('img');
+        preview.src = sourceFile.previewUrl;
+        preview.alt = `Aperçu de ${file.name}`;
+        preview.className = 'logo-thumbnail';
+        preview.onerror = () => {
+            preview.remove();
+            URL.revokeObjectURL(sourceFile.previewUrl);
+            sourceFile.previewUrl = null;
+            addSourceFilePlaceholder(row, sourceFile.letter);
+        };
+        row.appendChild(preview);
+    } else {
+        addSourceFilePlaceholder(row, sourceFile.letter);
+    }
+
+    const details = document.createElement('div');
+    details.className = 'logo-source-details';
+    const name = document.createElement('span');
+    name.className = 'logo-info';
+    name.textContent = file.name;
+    const message = document.createElement('small');
+    message.className = 'logo-source-message';
+    message.textContent = "Ce type de fichier ne permet pas de créer l’aperçu sur le produit. Nous l’utiliserons pour préparer votre épreuve visuelle.";
+    details.append(name, message);
+    row.appendChild(details);
+
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.className = 'btn-delete-logo';
+    removeButton.textContent = 'x';
+    removeButton.addEventListener('click', () => {
+        window.pendingLogoSourceFiles = window.pendingLogoSourceFiles.filter(item => item.id !== sourceFile.id);
+        const marker = canvas && canvas.getObjects().find(obj => obj.sourceFileId === sourceFile.id);
+        if (marker) canvas.remove(marker);
+        if (sourceFile.previewUrl) URL.revokeObjectURL(sourceFile.previewUrl);
+        row.remove();
+        updateSourceFileMarkerLetters();
+        syncSourceOnlyLogoList();
+    });
+    row.appendChild(removeButton);
+    sourceList.appendChild(row);
+    syncSourceOnlyLogoList();
+}
+
+function syncSourceOnlyLogoList() {
+    const sourceList = document.getElementById('source-only-logo-list');
+    if (!sourceList) return;
+
+    const currentImage = document.querySelector('.slideshowContainer img[style*="display: block"]');
+    const currentImageSrc = currentImage ? currentImage.src : '';
+    const activeSourceFiles = window.pendingLogoSourceFiles.filter(sourceFile => sourceFile.imageOwner === currentImageSrc);
+    let visibleRows = 0;
+    sourceList.querySelectorAll('.logo-source-item').forEach(row => {
+        const isCurrentImage = row.dataset.imageOwner === currentImageSrc;
+        row.style.display = isCurrentImage ? 'flex' : 'none';
+        if (isCurrentImage) visibleRows++;
+    });
+    sourceList.style.display = visibleRows > 0 ? 'flex' : 'none';
+
+    activeSourceFiles.forEach(sourceFile => {
+        let marker = canvas && canvas.getObjects().find(obj => obj.sourceFileId === sourceFile.id);
+        if (!marker && canvas) {
+            marker = createSourceFileMarker(sourceFile);
+        }
+        if (marker) {
+            marker.set({ selectable: true, evented: true });
+            canvas.bringToFront(marker);
+            const label = marker.item(1);
+            if (label) label.set('text', sourceFile.letter || 'A');
+            marker.setCoords();
+        }
+    });
+    updateSourceFileMarkerLetters();
+    updateActiveThumbnailWithLogos();
+}
+
+function createSourceFileMarker(sourceFile) {
+    if (!canvas || !sourceFile.imageOwner) return null;
+    const rect = new fabric.Rect({
+        width: 120,
+        height: 120,
+        fill: 'rgba(220, 25, 25, 0.42)',
+        stroke: 'rgba(180, 0, 0, 0.9)',
+        strokeWidth: 3,
+        strokeDashArray: [10, 6],
+        originX: 'center',
+        originY: 'center'
+    });
+    const label = new fabric.Text(sourceFile.letter || 'A', {
+        fontFamily: 'Arial',
+        fontSize: 16,
+        fontWeight: 'bold',
+        fill: '#fff',
+        originX: 'center',
+        originY: 'center',
+        textAlign: 'center',
+        objectCaching: false
+    });
+    const marker = new fabric.Group([rect, label], {
+        id: `source_marker_${sourceFile.id}`,
+        sourceFileMarker: true,
+        sourceFileId: sourceFile.id,
+        imageOwner: sourceFile.imageOwner,
+        left: canvas.width / 2,
+        top: canvas.height / 2,
+        originX: 'center',
+        originY: 'center',
+        hasControls: true,
+        hasBorders: true,
+        lockUniScaling: true,
+        lockRotation: true,
+        cornerColor: '#b40000',
+        borderColor: '#b40000',
+        transparentCorners: false
+    });
+    marker.scaleToWidth(Math.min(120, canvas.width * 0.22));
+    canvas.add(marker);
+    return marker;
+}
+
+function getSourceLogoLetter(index) {
+    let number = index + 1;
+    let label = '';
+    while (number > 0) {
+        number--;
+        label = String.fromCharCode(65 + (number % 26)) + label;
+        number = Math.floor(number / 26);
+    }
+    return label;
+}
+
+function addSourceFilePlaceholder(row, letter) {
+    const placeholder = document.createElement('span');
+    placeholder.className = 'logo-thumbnail logo-source-placeholder';
+    placeholder.textContent = letter || 'A';
+    placeholder.setAttribute('aria-label', `Repère ${letter || 'A'}`);
+    row.insertBefore(placeholder, row.firstChild);
+}
+
 function setupUploadListener() {
     const uploader = document.getElementById('logo-uploader');
     if (!uploader) return;
 
 uploader.onchange = function(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    const extension = file.name.split('.').pop().toLowerCase();
+    const canvasExtensions = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg'];
+    const sourceOnlyExtensions = ['ai', 'eps', 'pdf'];
     const currentProductImg = document.querySelector('.slideshowContainer img[style*="display: block"]');
     const currentImgSrc = currentProductImg ? currentProductImg.src : '';
+    if (!canvasExtensions.includes(extension) && !sourceOnlyExtensions.includes(extension)) {
+        displayProductError("Format de fichier non pris en charge.");
+        this.value = "";
+        return;
+    }
+
+    if (file.size > 7 * 1024 * 1024) {
+        displayProductError("La taille maximale est de 7 Mo par fichier.");
+        this.value = "";
+        return;
+    }
+
+    if (sourceOnlyExtensions.includes(extension)) {
+        addSourceOnlyLogoFile(file, currentImgSrc);
+        this.value = "";
+        return;
+    }
 
     const reader = new FileReader();
     reader.onload = function(event) {
         const rawImg = new Image();
         rawImg.src = event.target.result;
+        rawImg.onerror = function() {
+            addSourceOnlyLogoFile(file, currentImgSrc);
+        };
         rawImg.onload = function() {
             
             // 1. Redimensionner le logo source pour éviter d'embarquer des Mo inutiles
@@ -1430,13 +1731,29 @@ uploader.onchange = function(e) {
 
             // 2. Appliquer le rognage automatique sur l'image compressée
             const resizedImg = new Image();
-            resizedImg.src = resizeCanvas.toDataURL('image/png');
+            try {
+                resizedImg.src = resizeCanvas.toDataURL('image/png');
+            } catch (error) {
+                console.error("Erreur de conversion du logo :", error);
+                addSourceOnlyLogoFile(file, currentImgSrc);
+                return;
+            }
 
             resizedImg.onload = function() {
-                const croppedSrc = cropTransparentEdges(resizedImg);
+                let croppedSrc;
+                try {
+                    croppedSrc = cropTransparentEdges(resizedImg);
+                } catch (error) {
+                    console.error("Erreur de rognage du logo :", error);
+                    addSourceOnlyLogoFile(file, currentImgSrc);
+                    return;
+                }
 
                 const imgElement = new Image();
                 imgElement.src = croppedSrc;
+                imgElement.onerror = function() {
+                    addSourceOnlyLogoFile(file, currentImgSrc);
+                };
                 imgElement.onload = function() {
                     const fabricImg = new fabric.Image(imgElement, {
                         id: 'logo_' + Date.now(),
@@ -1448,9 +1765,12 @@ uploader.onchange = function(e) {
                         objectCaching: false,
                         uniformScaling: true
                     });
+                    fabricImg.logoSourceFile = file;
 
                     fabricImg.scaleToWidth(100);
                     canvas.add(fabricImg);
+                    createLogoLetterMarker(fabricImg);
+                    updateSourceFileMarkerLetters();
                     canvas.setActiveObject(fabricImg);
                     
                     addLogoToList(fabricImg.id, fabricImg);
@@ -1464,17 +1784,24 @@ uploader.onchange = function(e) {
             };
         };
     };
-    reader.readAsDataURL(e.target.files[0]);
+    reader.onerror = function() {
+        addSourceOnlyLogoFile(file, currentImgSrc);
+    };
+    reader.readAsDataURL(file);
     this.value = ""; 
 };
 
     canvas.on('object:scaling', (e) => {
+        syncLogoLetterMarker(e.target);
         updateLogoDimensions(e.target);
         updateLivePriceDisplay(); 
     });
+    canvas.on('object:moving', (e) => syncLogoLetterMarker(e.target));
     canvas.on('object:modified', () => updateLivePriceDisplay());
 
     canvas.on('object:modified', () => {
+    const activeObject = canvas.getActiveObject();
+    syncLogoLetterMarker(activeObject);
     updateLivePriceDisplay();
     updateActiveThumbnailWithLogos(); // <-- Déclenché uniquement lorsque le logo est relâché
 });
@@ -1483,83 +1810,35 @@ uploader.onchange = function(e) {
 
 function addLogoToList(id, fabricObj) {
     const listContainer = document.getElementById('logo-list-container');
-    const src = fabricObj.getElement().src;
-
-    // 1. Vérification fiable via dataset.name au lieu du texte visible
-    const activeOption = document.querySelector('.personalization-option.active');
-    const isCustom = activeOption && activeOption.dataset.name === "Personnalisé";
-
-    // Calcul des dimensions initiales
-    const widthInch = (fabricObj.getScaledWidth() / currentDynamicPPI).toFixed(2);
-    const heightInch = (fabricObj.getScaledHeight() / currentDynamicPPI).toFixed(2);
+    if (!listContainer) return;
 
     const div = document.createElement('div');
-    div.style.justifyContent = "space-between";
-    div.className = 'logo-item';
+    div.className = 'logo-item logo-source-item';
     div.id = 'item_' + id;
 
-    // 2. Génération du HTML selon le mode
-    if (isCustom) {
-        // Mode personnalisé : Miniature + bouton suppression (sans inputs de taille ni cadenas)
-        div.innerHTML = `
-            <img src="${src}" class="logo-thumbnail" alt="Aperçu logo">
-            <button class="btn-delete-logo" onclick="deleteLogo('${id}')">x</button>
-        `;
-    } else {
-        // Mode standard : Miniature + Inputs dimensions + Cadenas + Suppression
-        div.innerHTML = `
-            <img src="${src}" class="logo-thumbnail" alt="Aperçu logo">
-            <div class="logo-dims-inputs">
-                <input type="number" step="0.1" id="input_w_${id}" value="${widthInch}">
-                <span>X</span>
-                <input type="number" step="0.1" id="input_h_${id}" value="${heightInch}">
-            </div>
-            <button class="btn-lock-logo" title="Garder les proportions" onclick="toggleLock('${id}')">
-                <img id="lock_img_${id}" src="../static-resources/default/icons/black/close-lock.png" width="16">
-            </button>
-            <button class="btn-delete-logo" onclick="deleteLogo('${id}')">x</button>
-        `;
-    }
+    const preview = document.createElement('img');
+    preview.src = fabricObj.getElement().src;
+    preview.className = 'logo-thumbnail';
+    preview.alt = 'Aperçu du logo';
 
+    const details = document.createElement('div');
+    details.className = 'logo-source-details';
+    const name = document.createElement('span');
+    name.className = 'logo-info';
+    name.textContent = fabricObj.logoSourceFile ? fabricObj.logoSourceFile.name : 'Logo';
+    const message = document.createElement('small');
+    message.className = 'logo-source-message';
+    message.textContent = 'Image ajoutée au visuel du produit.';
+    details.append(name, message);
+
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.className = 'btn-delete-logo';
+    removeButton.textContent = 'x';
+    removeButton.addEventListener('click', () => deleteLogo(id));
+
+    div.append(preview, details, removeButton);
     listContainer.appendChild(div);
-
-    // 3. Écouteurs d'événements : uniquement si nous ne sommes PAS en 'Personnalisé'
-    if (!isCustom) {
-        const inputW = document.getElementById(`input_w_${id}`);
-        const inputH = document.getElementById(`input_h_${id}`);
-
-        if (inputW) {
-            inputW.addEventListener('input', function() {
-                const val = parseFloat(this.value);
-                if (val > 0) {
-                    if (fabricObj.uniformScaling) {
-                        fabricObj.scaleToWidth(val * currentDynamicPPI);
-                        if (inputH) inputH.value = (fabricObj.getScaledHeight() / currentDynamicPPI).toFixed(2);
-                    } else {
-                        fabricObj.set('scaleX', (val * currentDynamicPPI) / fabricObj.width);
-                    }
-                    canvas.renderAll();
-                    updateLivePriceDisplay(); 
-                }
-            });
-        }
-
-        if (inputH) {
-            inputH.addEventListener('input', function() {
-                const val = parseFloat(this.value);
-                if (val > 0) {
-                    if (fabricObj.uniformScaling) {
-                        fabricObj.scaleToHeight(val * currentDynamicPPI);
-                        if (inputW) inputW.value = (fabricObj.getScaledWidth() / currentDynamicPPI).toFixed(2);
-                    } else {
-                        fabricObj.set('scaleY', (val * currentDynamicPPI) / fabricObj.height);
-                    }
-                    canvas.renderAll();
-                    updateLivePriceDisplay();
-                }
-            });
-        }
-    }
 
     window.scrollTo(top);
 }
@@ -1603,10 +1882,14 @@ function updateLogoDimensions(fabricObj) {
 }
 
 function deleteLogo(id) {
+    if (!canvas) return;
     const objects = canvas.getObjects();
     const objToDelete = objects.find(obj => obj.id === id);
     if (objToDelete) {
         canvas.remove(objToDelete);
+        const badge = objects.find(obj => obj.logoLetterMarker && obj.logoId === id);
+        if (badge) canvas.remove(badge);
+        updateSourceFileMarkerLetters();
         updateTotalLogoCounter();
         updateLivePriceDisplay(); 
         
@@ -1666,7 +1949,7 @@ function updateTotalLogoCounter() {
     if (!canvas) return;
     
     // On compte tous les objets qui ont un 'imageOwner' (nos logos)
-    const allLogos = canvas.getObjects().filter(obj => obj.imageOwner);
+    const allLogos = canvas.getObjects().filter(obj => obj.imageOwner && !obj.sourceFileMarker && !obj.logoLetterMarker);
     const count = allLogos.length;
     let logoListContainer = document.querySelector('#logo-list-container');
     
@@ -1702,6 +1985,23 @@ function decodeBase64UTF8(base64String) {
     }
 }
 
+function clearNonPngSourceFiles() {
+    const retainedFiles = [];
+    window.pendingLogoSourceFiles.forEach(sourceFile => {
+        const extension = sourceFile.file.name.split('.').pop().toLowerCase();
+        if (extension === 'png') {
+            retainedFiles.push(sourceFile);
+            return;
+        }
+
+        if (sourceFile.previewUrl) URL.revokeObjectURL(sourceFile.previewUrl);
+        const row = document.querySelector(`[data-source-file-id="${sourceFile.id}"]`);
+        if (row) row.remove();
+    });
+    window.pendingLogoSourceFiles = retainedFiles;
+    syncSourceOnlyLogoList();
+}
+
 function updateSelectedPersonalizationOption(e) {
     let options = document.querySelectorAll('.personalization-option');
     
@@ -1713,12 +2013,14 @@ function updateSelectedPersonalizationOption(e) {
 
     const isAlreadyActive = element.classList.contains('active');
     if (!isAlreadyActive) {
+        clearNonPngSourceFiles();
         if (canvas) {
             canvas.clear(); 
             const listContainer = document.getElementById('logo-list-container');
             if (listContainer) listContainer.innerHTML = '';
             updateTotalLogoCounter();
         }
+
     }
 
     options.forEach(option => option.classList.remove('active'));

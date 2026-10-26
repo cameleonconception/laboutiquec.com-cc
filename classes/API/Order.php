@@ -66,11 +66,15 @@ public function addOrder($userId, $company, $fname, $lname, $phone, $userEmail, 
         // --- PRÉPARATION DU TABLEAU DE RETOUR POUR updatePaymentId ---
         $detailsArray = json_decode($details, true);
         $variantsToUpdate = [];
+        $designSignatures = [];
 
         if (is_array($detailsArray)) {
             foreach ($detailsArray as $product) {
                 // On récupère la signature du design au niveau du produit
                 $sig = $product['designSignature'] ?? null;
+                if (is_string($sig) && preg_match('/^studio_[0-9]+$/', $sig)) {
+                    $designSignatures[] = $sig;
+                }
 
                 if (isset($product['sizes']) && is_array($product['sizes'])) {
                     foreach ($product['sizes'] as $variant) {
@@ -86,6 +90,7 @@ public function addOrder($userId, $company, $fname, $lname, $phone, $userEmail, 
                     }
                 }
             }
+            $this->moveDesignDirectoriesToOrder($lastInsertId, $designSignatures);
         }
         
 
@@ -151,6 +156,33 @@ public function addOrder($userId, $company, $fname, $lname, $phone, $userEmail, 
     }
 }
 
+private function moveDesignDirectoriesToOrder($orderId, array $designSignatures)
+{
+    $staticResourcesDir = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'static-resources' . DIRECTORY_SEPARATOR;
+    $tempBaseDir = $staticResourcesDir . 'temp-designs' . DIRECTORY_SEPARATOR;
+    $orderBaseDir = $staticResourcesDir . 'orders' . DIRECTORY_SEPARATOR . (int) $orderId . DIRECTORY_SEPARATOR;
+
+    foreach (array_unique($designSignatures) as $signature) {
+        if (!is_string($signature) || !preg_match('/^studio_[0-9]+$/', $signature)) {
+            continue;
+        }
+
+        $sourcePath = $tempBaseDir . $signature;
+        $destinationPath = $orderBaseDir . $signature;
+        if (!is_dir($sourcePath) || file_exists($destinationPath)) {
+            continue;
+        }
+
+        if (!is_dir($orderBaseDir) && !mkdir($orderBaseDir, 0775, true) && !is_dir($orderBaseDir)) {
+            error_log('Unable to create order design directory: ' . $orderBaseDir);
+            continue;
+        }
+        if (!rename($sourcePath, $destinationPath)) {
+            error_log('Unable to move design directory from ' . $sourcePath . ' to ' . $destinationPath);
+        }
+    }
+}
+
 public function updatePaymentId($paymentId, $orderId, $variantsToUpdate, $email, $paymentCardCompany, $paymentCardNumber){
     $dbConnection = new Connection;
     $pdo = $dbConnection->getPDO();
@@ -201,30 +233,8 @@ public function updatePaymentId($paymentId, $orderId, $variantsToUpdate, $email,
                 }
             } // Fin de la boucle des stocks
 
-            // DEUXIÈME BOUCLE DANS updatePaymentId : Déplacement des dossiers Studio
-            $tempBaseDir = 'static-resources/temp-designs/';
-
-            foreach ($variantsToUpdate as $variant) {
-                if (!empty($variant['designSignature'])) {
-                    $signature = $variant['designSignature'];
-                    
-                    // Chemin source (ex: static-resources/temp-designs/studio_12345)
-                    $sourcePath = $tempBaseDir . $signature;
-                    
-                    // Chemin destination (ex: static-resources/orders/502/studio_12345)
-                    // On crée un dossier par signature à l'intérieur du dossier de commande
-                    $orderBaseDir = 'static-resources/orders/' . $orderId . '/';
-                    $destPath = $orderBaseDir . $signature;
-
-                    if (file_exists($sourcePath) && !file_exists($destPath)) {
-                        if (!file_exists($orderBaseDir)) {
-                            mkdir($orderBaseDir, 0777, true);
-                        }
-                        // Déplacement complet du dossier
-                        rename($sourcePath, $destPath);
-                    }
-                }
-            }
+            $designSignatures = array_column($variantsToUpdate, 'designSignature');
+            $this->moveDesignDirectoriesToOrder($orderId, $designSignatures);
         } // Fin du bloc if is_array
 
 
@@ -762,8 +772,6 @@ public function updateOrderStatus($id, $newStatus, $shippingLink, $shippingMessa
 }
 
 ?>
-
-
 
 
 

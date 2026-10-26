@@ -168,12 +168,13 @@ async function addProductToCart(details) {
     let personalizationValue = selectedValues.length > 0 ? selectedValues.join(', ') : "Aucune personnalisation";
 
     // --- 1.1 VALIDATION DU PRODUIT VIERGE ---
-    const logosOnCanvas = (typeof canvas !== 'undefined' && canvas) 
-        ? canvas.getObjects().filter(obj => obj.imageOwner).length 
+    const logosOnCanvas = (typeof canvas !== 'undefined' && canvas)
+        ? canvas.getObjects().filter(obj => obj.imageOwner && !obj.sourceFileMarker && !obj.logoLetterMarker).length
         : 0;
+    const sourceOnlyFiles = window.pendingLogoSourceFiles || [];
 
     if (parseInt(product.blank) === 0 || selectedStudioOption !== "Blank") {
-        if (logosOnCanvas === 0 && selectedStudioOption !== "Blank") {
+        if (logosOnCanvas === 0 && sourceOnlyFiles.length === 0 && selectedStudioOption !== "Blank") {
             displayProductError("Veuillez ajouter votre logo sur le produit");
             return resetAddButton(addToCartButton);
         }
@@ -238,10 +239,24 @@ async function addProductToCart(details) {
     let designSignature = null;
     let studioDataSummary = null; 
 
-    if (logosOnCanvas > 0) {
+    if (logosOnCanvas > 0 || sourceOnlyFiles.length > 0) {
         designSignature = "studio_" + Date.now();
-        const allLogos = canvas.getObjects().filter(obj => obj.imageOwner);
-        const uniqueViews = [...new Set(allLogos.map(l => l.imageOwner))];
+        const allCanvasItems = (typeof canvas !== 'undefined' && canvas)
+            ? canvas.getObjects().filter(obj => obj.imageOwner && !obj.logoLetterMarker)
+            : [];
+        const allLogos = allCanvasItems.filter(obj => !obj.sourceFileMarker);
+        const uniqueViews = [...new Set(allCanvasItems.map(item => item.imageOwner))];
+        const originalSourceUploads = [];
+        let sourceUploadIndex = 0;
+        const registerSourceFile = (file, prefix = 'source') => {
+            if (!file) return null;
+            const key = `${prefix}_${++sourceUploadIndex}`;
+            originalSourceUploads.push({ key, file });
+            return key;
+        };
+        sourceOnlyFiles.forEach(source => {
+            source.uploadKey = registerSourceFile(source.file, 'attachment');
+        });
         
         try {
             let temporaryViews = [];
@@ -250,13 +265,27 @@ async function addProductToCart(details) {
                 // Mode DETAILS : Pas de conversion Canvas toDataURL
                 temporaryViews = uniqueViews.map(viewSrc => {
                     const logosOnThisView = allLogos.filter(l => l.imageOwner === viewSrc);
+                    const markersOnThisView = allCanvasItems.filter(item => item.sourceFileMarker && item.imageOwner === viewSrc);
                     return {
                         viewImage: viewSrc,
                         previewWithLogos: viewSrc,
+                        markers: markersOnThisView.map(marker => ({
+                            sourceKey: sourceOnlyFiles.find(source => source.id === marker.sourceFileId)?.uploadKey,
+                            name: sourceOnlyFiles.find(source => source.id === marker.sourceFileId)?.file.name,
+                            letter: sourceOnlyFiles.find(source => source.id === marker.sourceFileId)?.letter,
+                            left: marker.left / canvas.width,
+                            top: marker.top / canvas.height,
+                            width: marker.getScaledWidth() / canvas.width,
+                            height: marker.getScaledHeight() / canvas.height
+                        })),
                         logos: logosOnThisView.map(l => ({
                             width: (l.getScaledWidth() / (typeof currentDynamicPPI !== 'undefined' ? currentDynamicPPI : 1)).toFixed(2),
                             height: (l.getScaledHeight() / (typeof currentDynamicPPI !== 'undefined' ? currentDynamicPPI : 1)).toFixed(2),
-                            src: l.getElement().src
+                            src: l.getElement().src,
+                            sourceKey: registerSourceFile(l.logoSourceFile),
+                            name: l.logoSourceFile ? l.logoSourceFile.name : 'Logo',
+                            letter: l.logoLetter,
+                            letterMarker: getLogoLetterMarkerData(l)
                         }))
                     };
                 });
@@ -264,43 +293,75 @@ async function addProductToCart(details) {
                 // Mode NORMAL : Rendu Canvas standard
                 temporaryViews = await Promise.all(uniqueViews.map(async (viewSrc) => {
                     const logosOnThisView = allLogos.filter(l => l.imageOwner === viewSrc);
-                    const previewImage = await getSingleViewPreview(viewSrc, logosOnThisView);
+                    const markersOnThisView = allCanvasItems.filter(item => item.sourceFileMarker && item.imageOwner === viewSrc);
+                    const previewItems = canvas.getObjects().filter(item => item.imageOwner === viewSrc);
+                    const previewImage = await getSingleViewPreview(viewSrc, previewItems);
 
                     return {
                         viewImage: viewSrc,
                         previewWithLogos: previewImage, 
+                        markers: markersOnThisView.map(marker => ({
+                            sourceKey: sourceOnlyFiles.find(source => source.id === marker.sourceFileId)?.uploadKey,
+                            name: sourceOnlyFiles.find(source => source.id === marker.sourceFileId)?.file.name,
+                            letter: sourceOnlyFiles.find(source => source.id === marker.sourceFileId)?.letter,
+                            left: marker.left / canvas.width,
+                            top: marker.top / canvas.height,
+                            width: marker.getScaledWidth() / canvas.width,
+                            height: marker.getScaledHeight() / canvas.height
+                        })),
                         logos: logosOnThisView.map(l => ({
                             width: (l.getScaledWidth() / currentDynamicPPI).toFixed(2),
                             height: (l.getScaledHeight() / currentDynamicPPI).toFixed(2),
-                            src: l.getElement().src
+                            src: l.getElement().src,
+                            sourceKey: registerSourceFile(l.logoSourceFile),
+                            name: l.logoSourceFile ? l.logoSourceFile.name : 'Logo',
+                            letter: l.logoLetter,
+                            letterMarker: getLogoLetterMarkerData(l)
                         }))
                     };
                 }));
             }
 
-            const uploadResult = await uploadDesignToServer(designSignature, temporaryViews);
+            const uploadResult = await uploadDesignToServer(designSignature, temporaryViews, originalSourceUploads);
 
             if (uploadResult.status === 'success') {
                 const designPayload = {
                     signature: designSignature,
                     timestamp: new Date().toISOString(),
-                    views: uploadResult.views 
+                    views: uploadResult.views,
+                    sourceFiles: uploadResult.sourceFiles
                 };
                 localStorage.setItem(designSignature, JSON.stringify(designPayload));
 
                 studioDataSummary = { 
                     logoCount: allLogos.length, 
+                    sourceFiles: uploadResult.sourceFiles,
                     designSignature: designSignature,
                     selectedPersonalizationOption: selectedStudioOption,
                     views: uploadResult.views.map(v => ({
                         previewUrl: v.previewUrl,
-                        logos: v.logos.map(l => ({ width: l.width, height: l.height }))
+                        markers: v.markers,
+                        logos: v.logos.map(l => ({
+                            width: l.width,
+                            height: l.height,
+                            sourceUrl: l.sourceUrl,
+                            sourceName: l.sourceName,
+                            sourceFilename: l.sourceFilename,
+                            name: l.name,
+                            letter: l.letter,
+                            letterMarker: l.letterMarker
+                        }))
                     }))
                 };
+            } else {
+                throw new Error(uploadResult.message || "La sauvegarde du design a échoué.");
             }
         } catch (error) {
             console.error("Erreur lors de l'upload :", error);
-            displayProductError("Erreur lors de la sauvegarde du design. Veuillez réessayer.");
+            const message = error instanceof Error && error.message
+                ? error.message
+                : "Erreur lors de la sauvegarde du design. Veuillez réessayer.";
+            displayProductError(message);
             return resetAddButton(addToCartButton);
         }
     }
@@ -381,6 +442,12 @@ async function addProductToCart(details) {
         if (typeof updateTotalLogoCounter === 'function') updateTotalLogoCounter();
         if (typeof updateLivePriceDisplay === 'function') updateLivePriceDisplay();
     }
+    window.pendingLogoSourceFiles.forEach(source => {
+        if (source.previewUrl) URL.revokeObjectURL(source.previewUrl);
+    });
+    window.pendingLogoSourceFiles = [];
+    const sourceOnlyList = document.getElementById('source-only-logo-list');
+    if (sourceOnlyList) sourceOnlyList.innerHTML = '';
 
     clearAllThumbnailLogos(); 
 
@@ -403,13 +470,64 @@ function resetAddButton(btn) {
     btn.classList.remove('loading');
 }
 
-async function uploadDesignToServer(signature, views) {
+async function uploadDesignToServer(signature, views, sourceUploads) {
+    const uploadedSources = [];
+    for (const source of sourceUploads) {
+        const formData = new FormData();
+        formData.append('signature', signature);
+        formData.append('key', source.key);
+        formData.append('sourceFile', source.file, source.file.name);
+
+        const sourceResponse = await fetch('../api/POST/addTemporaryDesign', {
+            method: 'POST',
+            body: formData
+        });
+        const sourceResult = await sourceResponse.json();
+        if (!sourceResponse.ok || sourceResult.status !== 'success') {
+            throw new Error(sourceResult.message || `Impossible d'enregistrer ${source.file.name}.`);
+        }
+
+        uploadedSources.push(sourceResult.sourceFile);
+    }
+
     const response = await fetch('../api/POST/addTemporaryDesign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ signature, views })
     });
-    return await response.json();
+    const result = await response.json();
+    if (!response.ok || result.status !== 'success') {
+        throw new Error(result.message || "La sauvegarde du design a échoué.");
+    }
+
+    const sourceByKey = new Map(uploadedSources.map(source => [source.key, source]));
+    result.views = result.views.map(view => ({
+        ...view,
+        logos: view.logos.map(logo => {
+            const source = sourceByKey.get(logo.sourceKey);
+            return source ? {
+                ...logo,
+                sourceUrl: source.url,
+                sourceName: source.name,
+                sourceFilename: source.filename
+            } : logo;
+        })
+    }));
+    result.sourceFiles = uploadedSources.filter(source =>
+        sourceUploads.some(upload => upload.key === source.key && upload.key.startsWith('attachment_'))
+    );
+    return result;
+}
+
+function getLogoLetterMarkerData(logo) {
+    const badge = canvas && canvas.getObjects().find(obj => obj.logoLetterMarker && obj.logoId === logo.id);
+    if (!badge || !canvas.width || !canvas.height) return null;
+    return {
+        left: badge.left / canvas.width,
+        top: badge.top / canvas.height,
+        width: badge.getScaledWidth() / canvas.width,
+        height: badge.getScaledHeight() / canvas.height
+    };
 }
 
 async function getDesignPreviews() {
