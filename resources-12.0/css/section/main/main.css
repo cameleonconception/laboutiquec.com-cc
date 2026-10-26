@@ -1596,14 +1596,14 @@ color: var(--primary-color);
 #logo-list-container{
     display:flex;
     flex-direction: column;
-    gap:10px;
+    gap:8px;
+    margin-bottom: -5px;
 }
 
 #source-only-logo-list {
     display: none;
     flex-direction: column;
     gap: 8px;
-    margin-top: 8px;
 }
 
 #source-only-logo-list:not(:empty) {

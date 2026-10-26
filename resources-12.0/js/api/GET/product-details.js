@@ -1360,7 +1360,7 @@ function addSourceOnlyLogoFile(file, imageOwner) {
     name.textContent = file.name;
     const message = document.createElement('small');
     message.className = 'logo-source-message';
-    message.textContent = "Ce type de fichier ne permet pas de créer l’aperçu sur le produit. Nous l’utiliserons pour préparer votre épreuve visuelle.";
+    message.textContent = "Ce fichier ne s’affiche pas sur le produit. Nous l’utiliserons pour préparer votre épreuve.";
     details.append(name, message);
     row.appendChild(details);
 
@@ -1630,7 +1630,7 @@ function addLogoToList(id, fabricObj) {
     name.textContent = fabricObj.logoSourceFile ? fabricObj.logoSourceFile.name : 'Logo';
     const message = document.createElement('small');
     message.className = 'logo-source-message';
-    message.textContent = 'Image ajoutée au visuel du produit.';
+    message.textContent = 'Logo ajouté à l’aperçu du produit.';
     details.append(name, message);
 
     const removeButton = document.createElement('button');

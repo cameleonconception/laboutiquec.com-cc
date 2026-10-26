@@ -813,7 +813,7 @@ function generateStudioHTMLForOrder(orderId, item, orderStatus) {
                 <div class="cart-preview-item" style="position:relative;display:flex;align-items:center;justify-content:center;line-height:0;">
                     <img src="${imagePath}" 
                          alt="Vue ${index + 1}" 
-                         style="width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;display:block;margin:auto;border-radius:4px;cursor:pointer;border:1px solid #ddd;"
+                         style="width:auto;height:auto;max-width:100%;max-height:100%;object-fit:contain;display:block;margin:auto;border-radius:4px;cursor:pointer;border:0;"
                          onerror="this.parentElement.innerHTML='<small>Image non disponible</small>'"
                          onclick="openPreviewModal('${imagePath}')">
                     ${markersHtml}
