@@ -622,7 +622,7 @@ function displayProductDetails(product, container, similarProducts = []) {
                             </div>
                             <span id="logo-counter-badge">0 logo</span>
                         </div>
-                        <input type="file" id="logo-uploader" accept=".png,.jpg,.jpeg,.webp,.gif,.bmp,.svg,.ai,.eps,.pdf" style="display:none;">
+                        <input type="file" id="logo-uploader" accept=".png,.jpg,.jpeg,.webp,.gif,.bmp,.svg,.ai,.eps,.pdf" multiple style="display:none;">
                         <div id="logo-list-container" style="display:none;"></div>
                         <div id="source-only-logo-list"></div>
                         <div id="personalization-details"></div>
@@ -1482,31 +1482,29 @@ function setupUploadListener() {
     if (!uploader) return;
 
     uploader.onchange = function(e) {
-        const file = e.target.files && e.target.files[0];
-        if (!file) return;
-
-        const extension = file.name.split('.').pop().toLowerCase();
-        const canvasExtensions = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg'];
-        const sourceOnlyExtensions = ['ai', 'eps', 'pdf'];
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
         const currentProductImg = document.querySelector('.slideshowContainer img[style*="display: block"]');
         const currentImgSrc = currentProductImg ? currentProductImg.src : '';
-        if (!canvasExtensions.includes(extension) && !sourceOnlyExtensions.includes(extension)) {
-            displayProductError("Format de fichier non pris en charge.");
-            this.value = "";
-            return;
-        }
 
-        if (file.size > 7 * 1024 * 1024) {
-            displayProductError("La taille maximale est de 7 Mo par fichier.");
-            this.value = "";
-            return;
-        }
+        files.forEach(file => {
+            const extension = file.name.split('.').pop().toLowerCase();
+            const canvasExtensions = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg'];
+            const sourceOnlyExtensions = ['ai', 'eps', 'pdf'];
+            if (!canvasExtensions.includes(extension) && !sourceOnlyExtensions.includes(extension)) {
+                displayProductError("Format de fichier non pris en charge.");
+                return;
+            }
 
-        if (sourceOnlyExtensions.includes(extension)) {
-            addSourceOnlyLogoFile(file, currentImgSrc);
-            this.value = "";
-            return;
-        }
+            if (file.size > 7 * 1024 * 1024) {
+                displayProductError("La taille maximale est de 7 Mo par fichier.");
+                return;
+            }
+
+            if (sourceOnlyExtensions.includes(extension)) {
+                addSourceOnlyLogoFile(file, currentImgSrc);
+                return;
+            }
 
         const reader = new FileReader();
         reader.onload = function(event) {
@@ -1592,8 +1590,9 @@ function setupUploadListener() {
         reader.onerror = function() {
             addSourceOnlyLogoFile(file, currentImgSrc);
         };
-        reader.readAsDataURL(file);
-        this.value = ""; 
+            reader.readAsDataURL(file);
+        });
+        this.value = "";
     };
 
     if (canvas) {
