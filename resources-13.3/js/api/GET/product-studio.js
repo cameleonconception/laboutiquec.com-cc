@@ -9,6 +9,18 @@ let REFERENCE_PPI = 108;
 let currentDynamicPPI = REFERENCE_PPI;
 
 
+function setLogoFileName(element, fileName, letter) {
+    const extensionIndex = fileName.lastIndexOf('.');
+    const hasExtension = extensionIndex > 0;
+    const baseName = hasExtension ? fileName.slice(0, extensionIndex) : fileName;
+    const extension = hasExtension ? fileName.slice(extensionIndex) : '';
+    const truncatedName = baseName.length > 10
+        ? `${baseName.slice(0, 10)}...${extension}`
+        : fileName;
+    element.textContent = `${letter || 'A'}) ${truncatedName}`;
+    element.title = fileName;
+}
+
 function parseImageFilename(fileName) {
     // 1. Extraire uniquement le nom du fichier (supprime les dossiers en amont)
     const cleanName = fileName.split('/').pop(); 
@@ -55,10 +67,18 @@ function updateSourceFileMarkerLetters() {
                     placeholder.textContent = letter;
                     placeholder.setAttribute('aria-label', `Repère ${letter}`);
                 }
+                const name = row && row.querySelector('.logo-info');
+                if (name) setLogoFileName(name, sourceFile.name, letter);
             }
             const label = entry.item(1);
             if (label) label.set('text', letter);
         } else {
+            const row = document.getElementById(`item_${entry.id}`);
+            const name = row && row.querySelector('.logo-info');
+            if (name) {
+                const fileName = entry.logoSourceFile ? entry.logoSourceFile.name : 'Logo';
+                setLogoFileName(name, fileName, letter);
+            }
             const badge = canvas.getObjects().find(obj =>
                 obj.logoLetterMarker && obj.logoId === entry.id
             );
@@ -1551,7 +1571,7 @@ function addSourceOnlyLogoFile(file, imageOwner) {
     details.className = 'logo-source-details';
     const name = document.createElement('span');
     name.className = 'logo-info';
-    name.textContent = file.name;
+    setLogoFileName(name, file.name, sourceFile.letter);
     const message = document.createElement('small');
     message.className = 'logo-source-message';
     message.textContent = "Ce format de logo ne permet pas d'aperçu direct, mais notre équipe l'utilisera pour préparer l'épreuve.";
@@ -1827,7 +1847,8 @@ function addLogoToList(id, fabricObj) {
     details.className = 'logo-source-details';
     const name = document.createElement('span');
     name.className = 'logo-info';
-    name.textContent = fabricObj.logoSourceFile ? fabricObj.logoSourceFile.name : 'Logo';
+    const fileName = fabricObj.logoSourceFile ? fabricObj.logoSourceFile.name : 'Logo';
+    setLogoFileName(name, fileName, fabricObj.logoLetter);
     const message = document.createElement('small');
     message.className = 'logo-source-message';
     message.textContent = 'Votre logo a bien été ajoutée au produit !';

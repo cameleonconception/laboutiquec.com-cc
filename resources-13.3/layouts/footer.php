@@ -1,27 +1,45 @@
 <?php
 // 1. Configuration de l'appel à l'API
-$url_api = "https://cameleonconception.com/api/avis"; // L'URL de votre API
-$cle_secrete = "eqfndwk3123qsw%?!sRVAS/%1/%FFFDCSASAD**/CaRt(#!"; // La clé (doit être identique à celle de api.php)
+$url_api = "https://cameleonconception.com/api/avis";
+$cle_secrete = $_ENV['REVIEWS_API_KEY'] ?? getenv('REVIEWS_API_KEY');
 
-// 2. Préparation de la requête avec la clé dans le Header
-$options = [
-    "http" => [
-        "method" => "GET",
-        "header" => "X-API-KEY: " . $cle_secrete . "\r\n"
-    ]
-];
-$contexte = stream_context_create($options);
-
-// 3. Appel de l'API
-$reponse_json = @file_get_contents($url_api, false, $contexte);
-
-// 4. Traitement et affichage des avis
+// 2. Appel de l'API et traitement de la réponse
 $reviews = [];
 
-if ($reponse_json !== FALSE) {
-    $donnees = json_decode($reponse_json, true);
-    if (isset($donnees['success']) && $donnees['success'] == true) {
-        $reviews = $donnees['reviews'];
+if (!is_string($cle_secrete) || trim($cle_secrete) === '') {
+    error_log("REVIEWS_API_KEY is not configured.");
+} else {
+    $options = [
+        "http" => [
+            "method" => "POST",
+            "header" => "Accept: application/json\r\nX-API-KEY: " . $cle_secrete . "\r\n",
+            "content" => "",
+            "timeout" => 5,
+            "ignore_errors" => true
+        ]
+    ];
+    $contexte = stream_context_create($options);
+    $reponse_json = file_get_contents($url_api, false, $contexte);
+    $statusCode = null;
+    foreach ($http_response_header ?? [] as $statusLigne) {
+        if (preg_match('/^HTTP\/\S+\s+(\d{3})/', $statusLigne, $statusMatch)) {
+            $statusCode = (int) $statusMatch[1];
+        }
+    }
+
+    if ($reponse_json === false) {
+        error_log("Reviews API request failed; HTTP status: " . ($statusCode ?? 'unknown') . ".");
+    } elseif ($statusCode === null || $statusCode < 200 || $statusCode >= 300) {
+        error_log("Reviews API returned HTTP status " . ($statusCode ?? 'unknown') . ".");
+    } else {
+        $donnees = json_decode($reponse_json, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            error_log("Reviews API returned invalid JSON; HTTP status: " . ($statusCode ?? 'unknown') . ".");
+        } elseif (is_array($donnees) && !empty($donnees['success']) && isset($donnees['reviews']) && is_array($donnees['reviews'])) {
+            $reviews = $donnees['reviews'];
+        } else {
+            error_log("Reviews API response did not contain successful reviews.");
+        }
     }
 }
 ?>
@@ -73,10 +91,10 @@ if ($reponse_json !== FALSE) {
             <h3>Services</h3>
             <hr>
         </div>
-        <a href="<?php echo $underLevelString; ?>services/cartes-intelligentes">Cartes d'affaires intelligentes</a>
-        <a href="<?php echo $underLevelString; ?>services/vetements">Vêtements et + personnalisés</a>
-        <a href="<?php echo $underLevelString; ?>services/site-web">Site web et boutique</a>
-        <a href="<?php echo $underLevelString; ?>services/services-connexes">Logos, visuels, et +</a>
+        <a href="www.cameleonconception.com/services/cartes-intelligentes">Cartes d'affaires intelligentes</a>
+        <a href="www.cameleonconception.com/services/vetements">Vêtements et + personnalisés</a>
+        <a href="www.cameleonconception.com/services/site-web">Site web et boutique</a>
+        <a href="www.cameleonconception.com/services/services-connexes">Logos, visuels, et +</a>
     </div>
     <div>
         <div>
@@ -84,28 +102,30 @@ if ($reponse_json !== FALSE) {
             <hr>
         </div>
         <a href="https://laboutiquec.com/cc/produits">Vêtements et accessoires blank</a>
-        <a href="https://laboutiquec.com/cc/produits?query=&categories=Hoodie">Hoodies</a>
-        <a href="https://laboutiquec.com/cc/produits?query=&categories=Casquette">Casquettes</a>
-        <a href="https://laboutiquec.com/cc/produits?query=&categories=T-shirt">T-shirts</a>
+        <a href="https://laboutiquec.com/cc/produits?query=hoodie">Hoodies</a>
+        <a href="https://laboutiquec.com/cc/produits?query=hat">Casquettes</a>
+        <a href="https://laboutiquec.com/cc/produits?categories=Article+de+bureau%2CArticle+promotionnel%2CDesks%2CPens">Articles promotionnels</a>
     </div>
     <div>
         <div>
             <h3>FAQ</h3>
             <hr>
         </div>
-        <a href="<?php echo $underLevelString; ?>faq">Questions fréquentes</a>
-        <a href="<?php echo $underLevelString; ?>faq#politiques">Nos politiques</a> 
-        <a href="https://laboutiquec.com/cc/catalogues">Nos catalogues</a> 
+        <a href="www.cameleonconception.com/faq">Questions fréquentes</a>
+        <a href="www.cameleonconception.com/faq#politiques">Nos politiques</a> 
+        
     </div>
     <div>
         <div>
             <h3>Contact</h3>
             <hr>
         </div>
+        
+        <a href="https://share.google/cVFAiGCJ4iJXip7Mz">Lundi au vendredi de 9h à 16h</a>
         <a href="mailto:info@cameleonconception.com">info@cameleonconception.com</a>
         <a href="tel:4383170376">(438) 317-0376</a>
-        <a href="https://www.google.com/maps/place/124+Rue+Saint-Laurent,+Saint-Eustache,+QC+J7P+5G1/@45.5683952,-73.8880124,17z/data=!3m1!4b1!4m6!3m5!1s0x4cc925871b6644c1:0x486b303c577d932e!8m2!3d45.5683915!4d-73.8854375!16s%2Fg%2F11b8v66t5n?entry=ttu&g_ep=EgoyMDI2MDMwOC4wIKXMDSoASAFQAw%3D%3D">124C rue Saint-Laurent, Sainte-Eustache, QC J7P 5G1</a>
-        <span>Lundi au vendredi de 9h à 16h</span>
+        <span style="color:var(--accent-color);">Aucun rendez-vous sur place</span>
+
 
     </div>
 </div>

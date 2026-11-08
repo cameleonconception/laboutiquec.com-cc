@@ -18,6 +18,18 @@ function formatImageUrl(url, quality) {
     return url.replace(/RS=[^&]+/, 'RS=' + (quality || 1800));
 }
 
+function setLogoFileName(element, fileName, letter) {
+    const extensionIndex = fileName.lastIndexOf('.');
+    const hasExtension = extensionIndex > 0;
+    const baseName = hasExtension ? fileName.slice(0, extensionIndex) : fileName;
+    const extension = hasExtension ? fileName.slice(extensionIndex) : '';
+    const truncatedName = baseName.length > 10
+        ? `${baseName.slice(0, 10)}...${extension}`
+        : fileName;
+    element.textContent = `${letter || 'A'}) ${truncatedName}`;
+    element.title = fileName;
+}
+
 function updateSourceFileMarkerLetters() {
     if (!canvas) return;
 
@@ -37,10 +49,18 @@ function updateSourceFileMarkerLetters() {
                     placeholder.textContent = letter;
                     placeholder.setAttribute('aria-label', `Repère ${letter}`);
                 }
+                const name = row && row.querySelector('.logo-info');
+                if (name) setLogoFileName(name, sourceFile.name, letter);
             }
             const label = entry.item(1);
             if (label) label.set('text', letter);
         } else {
+            const row = document.getElementById(`item_${entry.id}`);
+            const name = row && row.querySelector('.logo-info');
+            if (name) {
+                const fileName = entry.logoSourceFile ? entry.logoSourceFile.name : 'Logo';
+                setLogoFileName(name, fileName, letter);
+            }
             const badge = canvas.getObjects().find(obj =>
                 obj.logoLetterMarker && obj.logoId === entry.id
             );
@@ -1357,7 +1377,7 @@ function addSourceOnlyLogoFile(file, imageOwner) {
     details.className = 'logo-source-details';
     const name = document.createElement('span');
     name.className = 'logo-info';
-    name.textContent = file.name;
+    setLogoFileName(name, file.name, sourceFile.letter);
     const message = document.createElement('small');
     message.className = 'logo-source-message';
     message.textContent = "Ce fichier ne s’affiche pas sur le produit. Nous l’utiliserons pour préparer votre épreuve.";
@@ -1626,7 +1646,8 @@ function addLogoToList(id, fabricObj) {
     details.className = 'logo-source-details';
     const name = document.createElement('span');
     name.className = 'logo-info';
-    name.textContent = fabricObj.logoSourceFile ? fabricObj.logoSourceFile.name : 'Logo';
+    const fileName = fabricObj.logoSourceFile ? fabricObj.logoSourceFile.name : 'Logo';
+    setLogoFileName(name, fileName, fabricObj.logoLetter);
     const message = document.createElement('small');
     message.className = 'logo-source-message';
     message.textContent = 'Logo ajouté à l’aperçu du produit.';
@@ -1889,9 +1910,7 @@ function updateSelectedPersonalizationOption(e) {
                 detailsContainer.innerHTML = decodeBase64UTF8(product.blankDetails) || `
                     <p>Vous pouvez commander ce produit sans logo !</p>
                     <ul>
-                        <li>Aucun minimum de commande</li>
                         <li>Les prix varient en fonction du nombre d'articles total de votre commande.</li>
-                        <li>Pour les produits sans logo, recevez-les en 1 à 3 jours ouvrables.*</li>
                     </ul>
                 `;
             }

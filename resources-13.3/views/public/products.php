@@ -57,7 +57,7 @@
     </div>
     ';
 } ?>
-<div id="welcomeContainer">
+<div id="welcomeContainer" >
     <h1>Créez votre soumission</h1>
     <p>
         1. Sélectionnez un produit<br>
@@ -65,13 +65,6 @@
         3. Envoyez votre demande de soumission
     </p>
     <p>Une fois votre demande envoyée, un membre de notre équipe vous enverra la soumission par courriel en moins de 2h durant nos heures d'ouverture.</p>
-
-    <div class="welcome-actions">
-        <a href="catalogues" class="btn-primary">Voir tous nos produits (catalogues)</a>
-        <a href="https://cameleonconception.com/contact" class="btn-secondary">
-            Vous ne trouvez pas ?
-        </a>
-    </div>
 </div>
         <div id="toggle-filter-section" onclick="toggleFilterSection()" class="">Filtres<img src="<?php echo $staticResources;?>/default/icons/white/filter-2.png"></div>
         <div id="filter-section"></div>

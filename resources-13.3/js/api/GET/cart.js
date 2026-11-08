@@ -757,7 +757,7 @@ function generateStudioHTML(product, designData = null) {
             const linkAttributes = entry.sourceName
                 ? `download="${escapeSourceName(entry.sourceName)}"`
                 : 'target="_blank" rel="noopener"';
-            return `<li>${escapeSourceName(entry.letter)}) ${escapeSourceName(shortName(entry.name))} ... <a href="${escapeSourceName(entry.sourceUrl)}" ${linkAttributes} title="Télécharger le fichier source">(sources)</a></li>`;
+            return `<li>${escapeSourceName(entry.letter)}) ... <a href="${escapeSourceName(entry.sourceUrl)}" ${linkAttributes} title="Télécharger le fichier source">(sources)</a></li>`;
         }).join('');
         const markersHtml = product.imgUrl && !isCustomMode ? viewItems.map(entry => {
             const marker = entry.letterMarker;
