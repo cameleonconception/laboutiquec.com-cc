@@ -1,47 +1,6 @@
 <?php
-// 1. Configuration de l'appel à l'API
-$url_api = "https://cameleonconception.com/api/avis";
-$cle_secrete = $_ENV['REVIEWS_API_KEY'] ?? getenv('REVIEWS_API_KEY');
-
-// 2. Appel de l'API et traitement de la réponse
-$reviews = [];
-
-if (!is_string($cle_secrete) || trim($cle_secrete) === '') {
-    error_log("REVIEWS_API_KEY is not configured.");
-} else {
-    $options = [
-        "http" => [
-            "method" => "POST",
-            "header" => "Accept: application/json\r\nX-API-KEY: " . $cle_secrete . "\r\n",
-            "content" => "",
-            "timeout" => 5,
-            "ignore_errors" => true
-        ]
-    ];
-    $contexte = stream_context_create($options);
-    $reponse_json = file_get_contents($url_api, false, $contexte);
-    $statusCode = null;
-    foreach ($http_response_header ?? [] as $statusLigne) {
-        if (preg_match('/^HTTP\/\S+\s+(\d{3})/', $statusLigne, $statusMatch)) {
-            $statusCode = (int) $statusMatch[1];
-        }
-    }
-
-    if ($reponse_json === false) {
-        error_log("Reviews API request failed; HTTP status: " . ($statusCode ?? 'unknown') . ".");
-    } elseif ($statusCode === null || $statusCode < 200 || $statusCode >= 300) {
-        error_log("Reviews API returned HTTP status " . ($statusCode ?? 'unknown') . ".");
-    } else {
-        $donnees = json_decode($reponse_json, true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            error_log("Reviews API returned invalid JSON; HTTP status: " . ($statusCode ?? 'unknown') . ".");
-        } elseif (is_array($donnees) && !empty($donnees['success']) && isset($donnees['reviews']) && is_array($donnees['reviews'])) {
-            $reviews = $donnees['reviews'];
-        } else {
-            error_log("Reviews API response did not contain successful reviews.");
-        }
-    }
-}
+define('AVIS_DATA_ONLY', true);
+$reviews = require __DIR__ . '/../../controllers/api/avisGoogle.php';
 ?>
 
 <div class="reviews-wrapper">
@@ -124,7 +83,7 @@ if (!is_string($cle_secrete) || trim($cle_secrete) === '') {
         <a href="https://share.google/cVFAiGCJ4iJXip7Mz">Lundi au vendredi de 9h à 16h</a>
         <a href="mailto:info@cameleonconception.com">info@cameleonconception.com</a>
         <a href="tel:4383170376">(438) 317-0376</a>
-        <span style="color:var(--accent-color);">Aucun rendez-vous sur place</span>
+        <span style="color:var(--orange);">Aucun rendez-vous sur place</span>
 
 
     </div>
