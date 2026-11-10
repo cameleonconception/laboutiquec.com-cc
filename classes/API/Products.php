@@ -645,10 +645,12 @@ private function translateToEnglish(string $text): string
         return $text;
     }
 
-    // Supprime les accents (ex: "Éléphant" -> "Elephant")
-    $transliterator = \Transliterator::create('NFD; [:Nonspacing Mark:] Remove; NFC;');
-    if ($transliterator !== false) {
-        $text = $transliterator->transliterate($text);
+    // Supprime les accents lorsque l'extension intl est disponible.
+    if (class_exists(\Transliterator::class)) {
+        $transliterator = \Transliterator::create('NFD; [:Nonspacing Mark:] Remove; NFC;');
+        if ($transliterator !== false) {
+            $text = $transliterator->transliterate($text);
+        }
     }
 
     try {
@@ -866,7 +868,8 @@ private function getMostUsedSageProductsSearch(?string $usagePath = null): ?arra
                 'categories' => $categories,
                 'themes' => $themes,
                 'colors' => $colors,
-                'query' => $query
+                'query' => $query,
+                'cacheFile' => $entry['cacheFile'] ?? null
             ];
         }
     }
@@ -947,6 +950,13 @@ private function logSageProductsUsage(
         'lastUsedAt' => $timestamp,
         'lastPage' => $page
     ];
+    if (
+        is_array($previousEntry)
+        && isset($previousEntry['cacheFile'])
+        && preg_match('/\A[a-f0-9]{64}\.json\z/i', (string)$previousEntry['cacheFile'])
+    ) {
+        $usageData['queries'][$searchKey]['cacheFile'] = $previousEntry['cacheFile'];
+    }
 
     $json = json_encode(
         $usageData,
@@ -1005,6 +1015,65 @@ public function getSageProducts($page = 1, $query = '', $categories = [], $theme
         }
     }
 
+    $auth = [
+        "acctId"  => getenv('SAGE_ACCT_ID')  ?: ($_ENV['SAGE_ACCT_ID']  ?? '272296'),
+        "loginId" => getenv('SAGE_LOGIN_ID') ?: ($_ENV['SAGE_LOGIN_ID'] ?? 'System'),
+        "key"     => getenv('SAGE_AUTH_KEY') ?: ($_ENV['SAGE_AUTH_KEY'] ?? 'ff2a459cc459f1acbec11268a1e24c57')
+    ];
+    $cacheSearchPayload = [
+        "sort"              => "POPULARITY",
+        "verify"            => 1,
+        "extraReturnFields" => "COLORS",
+        "quickSearch"       => $cleanQuery,
+        "categories"        => implode(',', $categoriesList)
+    ];
+    $cacheThemesString = implode(',', $themesList);
+    if ($cacheThemesString !== '') {
+        $cacheSearchPayload["themes"] = $cacheThemesString;
+    }
+    $cacheColorsString = implode(',', $colorsList);
+    if ($cacheColorsString !== '') {
+        $cacheSearchPayload["colors"] = $cacheColorsString;
+    }
+    if ($page > 1) {
+        $cacheSearchPayload["page"] = (int)$page;
+    }
+    $cacheRequestData = [
+        "serviceId" => 103,
+        "apiVer" => 130,
+        "auth" => $auth,
+        "search" => $cacheSearchPayload
+    ];
+    $rawCachePath = $this->getSageProductsCachePath($cacheRequestData);
+    $cachedResponse = $this->readSageProductsCache($rawCachePath);
+    if ($cachedResponse === null && $usedMostPopularSearch) {
+        $cacheFile = $mostUsedSearch['cacheFile'] ?? '';
+        if (is_string($cacheFile) && preg_match('/\A[a-f0-9]{64}\.json\z/i', $cacheFile)) {
+            $sageDirectory = dirname(__DIR__, 2)
+                . DIRECTORY_SEPARATOR . 'controllers'
+                . DIRECTORY_SEPARATOR . 'json'
+                . DIRECTORY_SEPARATOR . 'sage';
+            $cachedResponse = $this->readSageProductsCache(
+                $sageDirectory . DIRECTORY_SEPARATOR . $cacheFile
+            );
+            if ($cachedResponse !== null) {
+                $this->writeSageProductsCache($rawCachePath, $cachedResponse);
+            }
+        }
+    }
+    if ($cachedResponse !== null) {
+        $cachedJson = json_encode(
+            $cachedResponse,
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION
+        );
+        if ($cachedJson !== false) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo $cachedJson;
+            exit;
+        }
+        error_log('Impossible de sérialiser la réponse du cache Sage : ' . json_last_error_msg());
+    }
+
     // Traduction des catégories
     $translatedCategories = [];
     foreach ($categoriesList as $cat) {
@@ -1048,11 +1117,7 @@ public function getSageProducts($page = 1, $query = '', $categories = [], $theme
     $data = [
         "serviceId" => 103,
         "apiVer"    => 130,
-        "auth"      => [
-            "acctId"  => getenv('SAGE_ACCT_ID')  ?: ($_ENV['SAGE_ACCT_ID']  ?? '272296'),
-            "loginId" => getenv('SAGE_LOGIN_ID') ?: ($_ENV['SAGE_LOGIN_ID'] ?? 'System'),
-            "key"     => getenv('SAGE_AUTH_KEY')  ?: ($_ENV['SAGE_AUTH_KEY']  ?? 'ff2a459cc459f1acbec11268a1e24c57')
-        ],
+        "auth"      => $auth,
         "search"    => $searchPayload
     ];
 
@@ -1074,6 +1139,7 @@ public function getSageProducts($page = 1, $query = '', $categories = [], $theme
     $cachePath = $this->getSageProductsCachePath($data);
     $cachedResponse = $this->readSageProductsCache($cachePath);
     if ($cachedResponse !== null) {
+        $this->writeSageProductsCache($rawCachePath, $cachedResponse);
         $cachedJson = json_encode(
             $cachedResponse,
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION
@@ -1117,34 +1183,101 @@ public function getSageProducts($page = 1, $query = '', $categories = [], $theme
         && is_array($responseData['products'])
     ) {
         $this->writeSageProductsCache($cachePath, $responseData);
+        $this->writeSageProductsCache($rawCachePath, $responseData);
     }
 
     header('Content-Type: application/json; charset=utf-8');
     echo $response;
     exit;
 }
-public function getSageProductDetails($eid)
+public function getSageProductDetailsBySpc($spc)
 {
     // Définir l'en-tête JSON immédiatement
     header('Content-Type: application/json; charset=utf-8');
 
     try {
-        if (empty($eid)) {
+        $spc = trim((string)$spc);
+        if ($spc === '') {
             http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Paramètre EID manquant ou invalide']);
+            echo json_encode(['success' => false, 'error' => 'Paramètre SPC manquant ou invalide']);
             exit;
         }
 
         $url = "https://www.promoplace.com/ws/ws.dll/ConnectAPI";
+        $auth = [
+            "acctId"  => getenv('SAGE_ACCT_ID')  ?: ($_ENV['SAGE_ACCT_ID']  ?? '272296'),
+            "loginId" => getenv('SAGE_LOGIN_ID') ?: ($_ENV['SAGE_LOGIN_ID'] ?? 'System'),
+            "key"     => getenv('SAGE_AUTH_KEY') ?: ($_ENV['SAGE_AUTH_KEY'] ?? 'ff2a459cc459f1acbec11268a1e24c57')
+        ];
+
+        $lookupData = [
+            "serviceId" => 103,
+            "apiVer"    => 130,
+            "auth"      => $auth,
+            "search"    => [
+                "sort"              => "POPULARITY",
+                "verify"            => 1,
+                "extraReturnFields" => "COLORS",
+                "quickSearch"       => $spc,
+                "categories"        => ""
+            ]
+        ];
+
+        $lookupJson = json_encode($lookupData);
+        $lookupHandle = curl_init($url);
+        curl_setopt($lookupHandle, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($lookupHandle, CURLOPT_POST, true);
+        curl_setopt($lookupHandle, CURLOPT_POSTFIELDS, $lookupJson);
+        curl_setopt($lookupHandle, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Content-Length: ' . strlen($lookupJson)
+        ]);
+
+        $lookupResponse = curl_exec($lookupHandle);
+        $lookupError = curl_error($lookupHandle);
+        $lookupHttpCode = curl_getinfo($lookupHandle, CURLINFO_HTTP_CODE);
+        curl_close($lookupHandle);
+
+        if ($lookupError) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Erreur cURL lors de la recherche du SPC : ' . $lookupError]);
+            exit;
+        }
+
+        if ($lookupHttpCode !== 200) {
+            http_response_code($lookupHttpCode);
+            echo json_encode(['success' => false, 'error' => "Erreur API Sage lors de la recherche du SPC (HTTP $lookupHttpCode)"]);
+            exit;
+        }
+
+        $lookupData = json_decode($lookupResponse, true);
+        if (!is_array($lookupData) || !isset($lookupData['products']) || !is_array($lookupData['products'])) {
+            http_response_code(502);
+            echo json_encode(['success' => false, 'error' => 'Réponse Sage invalide lors de la recherche du SPC']);
+            exit;
+        }
+
+        $eid = null;
+        foreach ($lookupData['products'] as $candidate) {
+            if (
+                isset($candidate['spc'], $candidate['prodEId'])
+                && strcasecmp(trim((string)$candidate['spc']), $spc) === 0
+            ) {
+                $eid = $candidate['prodEId'];
+                break;
+            }
+        }
+
+        if ($eid === null || $eid === '') {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'Aucun produit Sage ne correspond à ce SPC']);
+            exit;
+        }
 
         $data = [
             "serviceId" => 104,
             "apiVer"    => 130,
-            "auth"      => [
-                "acctId"  => getenv('SAGE_ACCT_ID')  ?: ($_ENV['SAGE_ACCT_ID']  ?? ''),
-                "loginId" => getenv('SAGE_LOGIN_ID') ?: ($_ENV['SAGE_LOGIN_ID'] ?? ''),
-                "key"     => getenv('SAGE_AUTH_KEY')  ?: ($_ENV['SAGE_AUTH_KEY']  ?? '')
-            ],
+            "auth"      => $auth,
             "prodEId"   => $eid
         ];
 
@@ -1179,14 +1312,16 @@ public function getSageProductDetails($eid)
 
         // Décoder la réponse JSON de Sage
         $responseData = json_decode($response, true);
-        $product = $responseData['product'] ?? [];
+        if (!is_array($responseData) || !isset($responseData['product']) || !is_array($responseData['product'])) {
+            http_response_code(502);
+            echo json_encode(['success' => false, 'error' => 'Réponse Sage invalide lors du chargement du produit']);
+            exit;
+        }
+        $product = $responseData['product'];
 
         // Récupérer le nom
         $name = $product['prName'] ?? '';
         $description = $product['description'] ?? '';
-        $sku = $product['itemNum'] ?? '';
-        $id = $product['prodEid'] ?? '';
-
         // Récupérer les chaînes
         $colorsString = $product['colors'] ?? '';
         $categoriesString = $product['categories'] ?? '';
@@ -1224,8 +1359,9 @@ public function getSageProductDetails($eid)
                 'colorImages' => $colorImages,
                 'imgUrl'      => $pics[0]['url'] ?? "",
                 'description' => $description,
-                'sku' => $sku,
-                'id' => $id,
+                'spc' => $spc,
+                'sku' => $spc,
+                'id' => $spc,
                 //'raw'         => $product
             ]
         ]);

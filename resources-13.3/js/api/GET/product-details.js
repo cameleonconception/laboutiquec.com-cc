@@ -202,13 +202,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const URL = window.location.search;
     const searchParams = new URLSearchParams(URL);
     const pid = parseInt(searchParams.get("pid")) ?? null;
-    const eid = searchParams.get("eid") ?? null; // SAGE ID
+    const spc = searchParams.get("spc") ?? null;
     const sku = searchParams.get("sku") ?? null;
 
     const selectedColorFromURL = searchParams.get("selectedColor");
 
-   if (eid) {
-    fetch('./../api/GET/sage-product-details?eid=' + eid + '&sku=' + sku)
+   if (spc) {
+    const sageProductParams = new URLSearchParams({ spc });
+    fetch('./../api/GET/sage-product-details?' + sageProductParams.toString())
         .then(async response => {
             const rawText = await response.text();
             try {

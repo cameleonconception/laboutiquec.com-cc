@@ -106,12 +106,18 @@ async function loadSageProducts(
       const sageNameTargets = [];
 
       for (const product of sageProductsArray) {
+        const spc = String(product.spc || "").trim();
+        if (!spc) {
+          console.error("Produit Sage ignoré : le SPC est manquant.");
+          continue;
+        }
+
         const skeleton = productContainer.querySelector(".skeleton-card");
         if (skeleton) skeleton.remove();
 
         totalLoadedProducts++;
 
-        const baseSku = product.spc || product.prodEId;
+        const baseSku = spc;
         const productName = product.name || "Nom inconnu";
 
         let initialImageSrc =
@@ -137,7 +143,7 @@ async function loadSageProducts(
           }
         }
 
-        const cardRedirectUrl = `./produits/details?eid=${product.prodEId}`;
+        const cardRedirectUrl = `./produits/details?spc=${encodeURIComponent(spc)}`;
 
         const card = document.createElement("div");
         card.className = `product-card`;
@@ -172,10 +178,11 @@ async function loadSageProducts(
           infoWrapper.innerHTML = `
                 <div class="product-info">
                     <h3 class="sage-product-name">${escapeHTML(productName)}</h3>
-                    <p>${baseSku}</p>
+                    <p class="sage-product-spc"></p>
                     <p style="display:none;">À partir de : ${formattedPrice} $</p>
                 </div>
             `;
+          infoWrapper.querySelector(".sage-product-spc").textContent = spc;
           sageNameTargets.push({
             name: productName,
             heading: infoWrapper.querySelector(".sage-product-name"),
