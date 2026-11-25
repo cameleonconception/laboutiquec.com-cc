@@ -698,7 +698,7 @@ private function getSageProductsCachePath(array $requestData): string
     return $cacheDirectory . DIRECTORY_SEPARATOR . $cacheKey . '.json';
 }
 
-private function readSageProductsCache(string $cachePath): ?array
+private function readSageProductsCache(string $cachePath, bool $allowExpired = false): ?array
 {
     if (!is_file($cachePath)) {
         return null;
@@ -744,11 +744,27 @@ private function readSageProductsCache(string $cachePath): ?array
     }
 
     $cacheAge = time() - $cachedAt;
-    if ($cacheAge < 0 || $cacheAge >= self::SAGE_PRODUCTS_CACHE_TTL) {
+    if ($cacheAge < 0 || (!$allowExpired && $cacheAge >= self::SAGE_PRODUCTS_CACHE_TTL)) {
         return null;
     }
 
     return $cachedResponse;
+}
+
+private function findSageProductsCacheFallback(array $cachePaths): ?array
+{
+    foreach (array_unique($cachePaths) as $cachePath) {
+        if (!is_string($cachePath) || $cachePath === '') {
+            continue;
+        }
+
+        $cachedResponse = $this->readSageProductsCache($cachePath, true);
+        if ($cachedResponse !== null) {
+            return $cachedResponse;
+        }
+    }
+
+    return null;
 }
 
 private function writeSageProductsCache(string $cachePath, array $response): void
@@ -803,6 +819,182 @@ private function writeSageProductsCache(string $cachePath, array $response): voi
     if (!$writeSucceeded) {
         error_log('Échec de l’écriture du cache Sage : ' . $cachePath);
     }
+}
+
+private function getProductClickCountsPath(): string
+{
+    return dirname(__DIR__, 2)
+        . DIRECTORY_SEPARATOR . 'controllers'
+        . DIRECTORY_SEPARATOR . 'json'
+        . DIRECTORY_SEPARATOR . 'productClicks.json';
+}
+
+private function decodeProductClickCounts(string $contents): array
+{
+    if (trim($contents) === '') {
+        return [];
+    }
+
+    $data = json_decode($contents, true);
+    if (!is_array($data) || !isset($data['counts']) || !is_array($data['counts'])) {
+        throw new RuntimeException('Fichier de popularité des produits invalide.');
+    }
+
+    $counts = [];
+    foreach ($data['counts'] as $key => $count) {
+        if (!is_string($key) || !is_numeric($count) || (int)$count < 0) {
+            throw new RuntimeException('Valeur invalide dans le fichier de popularité des produits.');
+        }
+        $counts[$key] = (int)$count;
+    }
+
+    return $counts;
+}
+
+private function readProductClickCountsFromFile(): array
+{
+    $path = $this->getProductClickCountsPath();
+    if (!is_file($path)) {
+        return [];
+    }
+
+    $file = @fopen($path, 'rb');
+    if ($file === false) {
+        throw new RuntimeException('Impossible de lire le fichier de popularité des produits.');
+    }
+    if (!flock($file, LOCK_SH)) {
+        fclose($file);
+        throw new RuntimeException('Impossible de verrouiller le fichier de popularité des produits.');
+    }
+
+    try {
+        $contents = stream_get_contents($file);
+        if ($contents === false) {
+            throw new RuntimeException('Impossible de lire le contenu de popularité des produits.');
+        }
+        return $this->decodeProductClickCounts($contents);
+    } finally {
+        flock($file, LOCK_UN);
+        fclose($file);
+    }
+}
+
+private function incrementProductClickCount(string $key): int
+{
+    $path = $this->getProductClickCountsPath();
+    $directory = dirname($path);
+    if (!is_dir($directory) && !@mkdir($directory, 0755, true) && !is_dir($directory)) {
+        throw new RuntimeException('Impossible de créer le répertoire de popularité des produits.');
+    }
+
+    $file = @fopen($path, 'c+b');
+    if ($file === false) {
+        throw new RuntimeException('Impossible d’ouvrir le fichier de popularité des produits.');
+    }
+    if (!flock($file, LOCK_EX)) {
+        fclose($file);
+        throw new RuntimeException('Impossible de verrouiller le fichier de popularité des produits.');
+    }
+
+    try {
+        rewind($file);
+        $contents = stream_get_contents($file);
+        if ($contents === false) {
+            throw new RuntimeException('Impossible de lire le contenu de popularité des produits.');
+        }
+
+        $counts = $this->decodeProductClickCounts($contents);
+        $counts[$key] = ($counts[$key] ?? 0) + 1;
+        $json = json_encode(
+            ['version' => 1, 'counts' => $counts],
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+        );
+        if ($json === false) {
+            throw new RuntimeException('Impossible d’encoder les clics des produits : ' . json_last_error_msg());
+        }
+
+        if (!ftruncate($file, 0) || !rewind($file)) {
+            throw new RuntimeException('Impossible de préparer le fichier de popularité des produits.');
+        }
+
+        $written = 0;
+        $length = strlen($json);
+        while ($written < $length) {
+            $bytesWritten = fwrite($file, substr($json, $written));
+            if ($bytesWritten === false || $bytesWritten === 0) {
+                throw new RuntimeException('Échec de l’écriture de popularité des produits.');
+            }
+            $written += $bytesWritten;
+        }
+        if (!fflush($file)) {
+            throw new RuntimeException('Échec de la sauvegarde de popularité des produits.');
+        }
+
+        return $counts[$key];
+    } finally {
+        flock($file, LOCK_UN);
+        fclose($file);
+    }
+}
+
+private function sendProductClickResponse(array $response, int $status = 200): void
+{
+    $json = json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($json === false) {
+        error_log('Impossible d’encoder la réponse de popularité des produits : ' . json_last_error_msg());
+        $json = '{"success":false,"message":"Erreur lors de la préparation de la réponse."}';
+        $status = 500;
+    }
+
+    http_response_code($status);
+    header('Content-Type: application/json; charset=utf-8');
+    echo $json;
+    exit;
+}
+
+public function getProductClickCounts(): void
+{
+    try {
+        $counts = $this->readProductClickCountsFromFile();
+    } catch (RuntimeException $e) {
+        error_log($e->getMessage());
+        $this->sendProductClickResponse(
+            ['success' => false, 'message' => 'Impossible de charger la popularité des produits.'],
+            500
+        );
+        return;
+    }
+
+    $this->sendProductClickResponse(['success' => true, 'counts' => $counts]);
+}
+
+public function recordProductClick($type, $id): void
+{
+    $type = is_string($type) ? strtolower(trim($type)) : '';
+    $id = (is_string($id) || is_int($id)) ? trim((string)$id) : '';
+
+    if (in_array($type, ['local', 'sage'], true) && preg_match('/\A[A-Za-z0-9._-]{1,100}\z/', $id)) {
+        $key = $type . ':' . strtoupper($id);
+    } else {
+        $this->sendProductClickResponse(
+            ['success' => false, 'message' => 'Identifiant de produit invalide.'],
+            400
+        );
+        return;
+    }
+
+    try {
+        $count = $this->incrementProductClickCount($key);
+    } catch (RuntimeException $e) {
+        error_log($e->getMessage());
+        $this->sendProductClickResponse(
+            ['success' => false, 'message' => 'Impossible d’enregistrer le clic sur le produit.'],
+            500
+        );
+        return;
+    }
+
+    $this->sendProductClickResponse(['success' => true, 'count' => $count]);
 }
 
 private function getMostUsedSageProductsSearch(?string $usagePath = null): ?array
@@ -1018,6 +1210,12 @@ public function getSageProducts($page = 1, $query = '', $categories = [], $theme
     $colorsArray = is_array($colors) ? $colors : explode(',', (string)$colors);
     $colorsList = array_filter(array_map('trim', $colorsArray));
     $cleanQuery = trim((string)$query);
+    $host = strtolower(trim((string)(parse_url(
+        'http://' . ($_SERVER['HTTP_HOST'] ?? ''),
+        PHP_URL_HOST
+    ) ?: ''), '[]'));
+    $isLocalHost = in_array($host, ['localhost', '127.0.0.1', '::1'], true)
+        || preg_match('/\.(?:localhost|local|test)$/', $host) === 1;
 
     $usedMostPopularSearch = false;
     if ($categoriesList === [] && $themesList === [] && $colorsList === [] && $cleanQuery === '') {
@@ -1061,7 +1259,7 @@ public function getSageProducts($page = 1, $query = '', $categories = [], $theme
         "search" => $cacheSearchPayload
     ];
     $rawCachePath = $this->getSageProductsCachePath($cacheRequestData);
-    $cachedResponse = $this->readSageProductsCache($rawCachePath);
+    $cachedResponse = $this->readSageProductsCache($rawCachePath, $isLocalHost);
     if ($cachedResponse === null && $usedMostPopularSearch) {
         $cacheFile = $mostUsedSearch['cacheFile'] ?? '';
         if (is_string($cacheFile) && preg_match('/\A[a-f0-9]{64}\.json\z/i', $cacheFile)) {
@@ -1070,7 +1268,8 @@ public function getSageProducts($page = 1, $query = '', $categories = [], $theme
                 . DIRECTORY_SEPARATOR . 'json'
                 . DIRECTORY_SEPARATOR . 'sage';
             $cachedResponse = $this->readSageProductsCache(
-                $sageDirectory . DIRECTORY_SEPARATOR . $cacheFile
+                $sageDirectory . DIRECTORY_SEPARATOR . $cacheFile,
+                $isLocalHost
             );
             if ($cachedResponse !== null) {
                 $this->writeSageProductsCache($rawCachePath, $cachedResponse);
@@ -1153,7 +1352,7 @@ public function getSageProducts($page = 1, $query = '', $categories = [], $theme
     }
 
     $cachePath = $this->getSageProductsCachePath($data);
-    $cachedResponse = $this->readSageProductsCache($cachePath);
+    $cachedResponse = $this->readSageProductsCache($cachePath, $isLocalHost);
     if ($cachedResponse !== null) {
         $this->writeSageProductsCache($rawCachePath, $cachedResponse);
         $cachedJson = json_encode(
@@ -1168,10 +1367,24 @@ public function getSageProducts($page = 1, $query = '', $categories = [], $theme
         error_log('Impossible de sérialiser la réponse du cache Sage : ' . json_last_error_msg());
     }
 
+    $fallbackCachePaths = [$cachePath, $rawCachePath];
+    if ($usedMostPopularSearch) {
+        $cacheFile = $mostUsedSearch['cacheFile'] ?? '';
+        if (is_string($cacheFile) && preg_match('/\A[a-f0-9]{64}\.json\z/i', $cacheFile)) {
+            $sageDirectory = dirname(__DIR__, 2)
+                . DIRECTORY_SEPARATOR . 'controllers'
+                . DIRECTORY_SEPARATOR . 'json'
+                . DIRECTORY_SEPARATOR . 'sage';
+            $fallbackCachePaths[] = $sageDirectory . DIRECTORY_SEPARATOR . $cacheFile;
+        }
+    }
+
     $jsonData = json_encode($data);
 
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 8);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonData);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
@@ -1185,21 +1398,50 @@ public function getSageProducts($page = 1, $query = '', $categories = [], $theme
     curl_close($ch);
 
     if ($error) {
+        $fallbackResponse = $this->findSageProductsCacheFallback($fallbackCachePaths);
+        if ($fallbackResponse !== null) {
+            $fallbackJson = json_encode(
+                $fallbackResponse,
+                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION
+            );
+            if ($fallbackJson !== false) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo $fallbackJson;
+                exit;
+            }
+            error_log('Impossible de sérialiser le cache Sage de secours : ' . json_last_error_msg());
+        }
+
         http_response_code(500);
         echo json_encode(["ok" => false, "error" => "Erreur cURL : " . $error]);
         exit;
     }
 
-    $responseData = json_decode($response, true);
-    if (
+    $responseData = is_string($response) ? json_decode($response, true) : null;
+    $hasValidResponse = (
         $httpCode === 200
         && is_array($responseData)
         && !empty($responseData['ok'])
         && isset($responseData['products'])
         && is_array($responseData['products'])
-    ) {
+    );
+    if ($hasValidResponse) {
         $this->writeSageProductsCache($cachePath, $responseData);
         $this->writeSageProductsCache($rawCachePath, $responseData);
+    } else {
+        $fallbackResponse = $this->findSageProductsCacheFallback($fallbackCachePaths);
+        if ($fallbackResponse !== null) {
+            $fallbackJson = json_encode(
+                $fallbackResponse,
+                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION
+            );
+            if ($fallbackJson !== false) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo $fallbackJson;
+                exit;
+            }
+            error_log('Impossible de sérialiser le cache Sage de secours : ' . json_last_error_msg());
+        }
     }
 
     header('Content-Type: application/json; charset=utf-8');

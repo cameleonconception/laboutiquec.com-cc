@@ -1,4 +1,5 @@
 .env
+/controllers/json/productClicks.json
 static-resources/
 vendor/
 Fiche technique.afpub

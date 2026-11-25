@@ -194,6 +194,28 @@ async function translateText(text) {
     }
 }
 
+function recordProductClick(type, id) {
+    const body = new URLSearchParams({ type, id: String(id) });
+    fetch('./../api/POST/product-click', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+        keepalive: true
+    })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Impossible d'enregistrer le clic (HTTP ${response.status}).`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.message || "Impossible d'enregistrer le clic sur ce produit.");
+            }
+        })
+        .catch(error => console.error("Erreur d'enregistrement du clic produit :", error));
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     let productContainer = document.getElementById('product-details-container');
 
@@ -682,12 +704,11 @@ function displayProductDetails(product, container, similarProducts = []) {
                                         targetImg = thumbImg ? thumbImg : prod.imgNames[0];
                                     }
                                     const rawImgSrc = targetImg ? `../static-resources/products/${prod.sku}/${targetImg}` : '../static-resources/default/products/introuvable.webp';
-                                    const imgSrc = formatImageUrl(rawImgSrc, 300); // <--- AJOUT ICI
                                     return `
-                                        <div class="similar-item" style="cursor: pointer;" onclick="window.location.href='./studio?sku=${prod.sku}'">
-                                            <img src="${imgSrc}" alt="${prod.name}" style="width: 100%; height: auto; margin-bottom:5px; border-radius: 6px;" onerror="this.onerror=null; this.src='../static-resources/default/products/introuvable.webp';" />
-                                            <span>${prod.name}</span>
-                                            <span class="light">${prod.sku}</span>
+                                        <div class="similar-item" style="cursor: pointer;" onclick="recordProductClick('local', '${prod.sku}'); window.location.href='./studio?sku=${prod.sku}'">
+                                            <img src="${rawImgSrc}" alt="${prod.name}" style="width: 100%; height: auto; margin-bottom:5px; border-radius: 6px;" onerror="this.onerror=null; this.src='../static-resources/default/products/introuvable.webp';" />
+                                            <span class="similar-product-name">${prod.name}</span>
+                                            <span class="similar-product-sku light">${prod.sku}</span>
                                         </div>
                                     `;
                                 }).join('')}

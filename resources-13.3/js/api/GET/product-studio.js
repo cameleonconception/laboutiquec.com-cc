@@ -213,6 +213,28 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => console.error('Error fetching products:', error));
 });
 
+function recordProductClick(type, id) {
+    const body = new URLSearchParams({ type, id: String(id) });
+    fetch('./../api/POST/product-click', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+        keepalive: true
+    })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Impossible d'enregistrer le clic (HTTP ${response.status}).`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.message || "Impossible d'enregistrer le clic sur ce produit.");
+            }
+        })
+        .catch(error => console.error("Erreur d'enregistrement du clic produit :", error));
+}
+
 // ----------------------------------------------------------------------
 // LOGIQUE CARROUSEL MISE À JOUR (Utilisation de la classe 'disabled')
 // ----------------------------------------------------------------------
@@ -612,11 +634,11 @@ function displayProductDetails(product, container, similarProducts) {
                 return `
                     <div class="similar-item" 
                          style="cursor: pointer;" 
-                         onclick="window.location.href='./studio?sku=${prod.sku}'"
+                         onclick="recordProductClick('local', '${prod.sku}'); window.location.href='./studio?sku=${prod.sku}'"
                     >
                         <img src="${imgSrc}" alt="${prod.name}" style="width: 100%; height: auto; margin-bottom:5px; border-radius: 6px;" onerror="this.onerror=null; this.src='../static-resources/default/products/introuvable.webp';" />
-                        <span class="" >${prod.name}</span>
-                        <span class="light" >${prod.sku}</span>
+                        <span class="similar-product-name">${prod.name}</span>
+                        <span class="similar-product-sku light">${prod.sku}</span>
                     </div>
                 `;
             }).join('')}

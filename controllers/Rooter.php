@@ -38,6 +38,7 @@ try {
 
     
     $ROOTER->addViews('GET', '/api/GET/products', '/../controllers/api/GET/products.php', 'ALL', [], 'FALSE', 'FALSE', 'FALSE','FALSE');
+    $ROOTER->addViews('GET', '/api/GET/product-clicks', '/../controllers/api/GET/product-clicks.php', 'ALL', [], 'FALSE', 'FALSE', 'FALSE','FALSE');
     $ROOTER->addViews('GET', '/api/GET/sageProducts', '/../controllers/api/GET/sageProducts.php', 'ALL', [], 'FALSE', 'FALSE', 'FALSE','FALSE');
     $ROOTER->addViews('GET', '/api/GET/product-details', '/../controllers/api/GET/product-details.php', 'ALL', [], 'FALSE', 'FALSE', 'FALSE','FALSE');
     $ROOTER->addViews('GET', '/api/GET/sage-product-details', '/../controllers/api/GET/sage-product-details.php', 'ALL', [], 'FALSE', 'FALSE', 'FALSE','FALSE');
@@ -55,6 +56,7 @@ try {
     $ROOTER->addViews('GET', '/api/UPDATE/orderStatus', '/../controllers/api/UPDATE/orderStatus.php', 'ALL', [], 'FALSE', 'FALSE', 'FALSE','FALSE');
     
     $ROOTER->addViews('POST', '/api/POST/initOrder', '/../controllers/api/POST/initOrder.php', 'ALL', [], 'FALSE', 'FALSE', 'FALSE','FALSE');
+    $ROOTER->addViews('POST', '/api/POST/product-click', '/../controllers/api/POST/product-click.php', 'ALL', [], 'FALSE', 'FALSE', 'FALSE','FALSE');
     $ROOTER->addViews('POST', '/api/POST/addTemporaryDesign', '/../controllers/api/POST/addTemporaryDesign.php', 'ALL', [], 'FALSE', 'FALSE', 'FALSE','FALSE');
     $ROOTER->addViews('POST', '/api/POST/deleteTemporaryDesign', '/../controllers/api/POST/deleteTemporaryDesign.php', 'ALL', [], 'FALSE', 'FALSE', 'FALSE','FALSE');
     $ROOTER->addViews('POST', '/api/UPDATE/paymentStatus', '/../controllers/api/UPDATE/paymentStatus.php', 'ALL', [], 'FALSE', 'FALSE', 'FALSE','FALSE');

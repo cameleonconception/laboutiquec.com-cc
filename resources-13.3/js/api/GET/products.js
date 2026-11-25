@@ -1,5 +1,66 @@
 window.lastLoadedProductsImgNames = {};
 let totalLoadedProducts = 0; // Compteur global de produits affichés
+let productClickCounts = {};
+const productClickCountsLoaded = fetch("./api/GET/product-clicks")
+  .then((response) => {
+    if (!response.ok) {
+      throw new Error(`Impossible de charger les clics produits (HTTP ${response.status}).`);
+    }
+    return response.json();
+  })
+  .then((data) => {
+    if (!data || !data.success || !data.counts || typeof data.counts !== "object") {
+      throw new Error("Réponse invalide pour les clics produits.");
+    }
+    productClickCounts = data.counts;
+  })
+  .catch((error) => {
+    console.error("Erreur lors du chargement des clics produits :", error);
+  });
+
+function sortProductCardsByPopularity(productContainer) {
+  productClickCountsLoaded.then(() => {
+    const cards = Array.from(productContainer.querySelectorAll(".product-card"));
+    const orderedCards = cards
+      .map((card, index) => ({ card, index }))
+      .sort((first, second) => {
+        const firstCount = Number(productClickCounts[first.card.dataset.popularityKey] || 0);
+        const secondCount = Number(productClickCounts[second.card.dataset.popularityKey] || 0);
+        return secondCount - firstCount || first.index - second.index;
+      });
+    const sentinel = productContainer.querySelector(".products-load-sentinel");
+
+    orderedCards.forEach(({ card }) => {
+      if (sentinel) {
+        productContainer.insertBefore(card, sentinel);
+      } else {
+        productContainer.appendChild(card);
+      }
+    });
+  });
+}
+
+function recordProductClick(type, id) {
+  const body = new URLSearchParams({ type, id: String(id) });
+  fetch("./api/POST/product-click", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+    keepalive: true,
+  })
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`Impossible d'enregistrer le clic (HTTP ${response.status}).`);
+      }
+      return response.json();
+    })
+    .then((data) => {
+      if (!data.success) {
+        throw new Error(data.message || "Impossible d'enregistrer le clic produit.");
+      }
+    })
+    .catch((error) => console.error("Erreur d'enregistrement du clic produit :", error));
+}
 
 function parseImageFilename(fileName) {
   if (!fileName || typeof fileName !== "string") {
@@ -147,7 +208,11 @@ async function loadSageProducts(
 
         const card = document.createElement("div");
         card.className = `product-card`;
-        card.onclick = () => (window.location.href = cardRedirectUrl);
+        card.dataset.popularityKey = `sage:${spc.toUpperCase()}`;
+        card.onclick = () => {
+          recordProductClick("sage", spc);
+          window.location.href = cardRedirectUrl;
+        };
 
         card.innerHTML = `
             <div class="thumbnail-wrapper" data-sku="${baseSku}" data-real-sku="${baseSku}" data-prefix="thumbnail"> 
@@ -202,6 +267,7 @@ async function loadSageProducts(
           console.error("Erreur lors de la traduction du nom Sage:", error);
         }
       }
+      sortProductCardsByPopularity(productContainer);
     }
 
     productContainer
@@ -447,7 +513,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
             const card = document.createElement("div");
             card.className = `product-card ${activeHtml}`;
-            card.onclick = () => (window.location.href = cardRedirectUrl);
+            card.dataset.popularityKey = `local:${baseSku.toUpperCase()}`;
+            card.onclick = () => {
+              recordProductClick("local", baseSku);
+              window.location.href = cardRedirectUrl;
+            };
 
             card.innerHTML = `
                             <div class="thumbnail-wrapper" data-sku="${uniqueCardId}" data-real-sku="${baseSku}" data-prefix="${targetPrefix}"> 
@@ -504,7 +574,7 @@ document.addEventListener("DOMContentLoaded", function () {
                                         alt="Image de la couleur ${safeColor}"
                                         loading="lazy" 
                                         onerror="this.onerror=null; this.src='./static-resources/default/products/introuvable-point-interogation.webp';"
-                                        onclick="window.location.href='./produits/${view}?pid=${product.id}&selectedColor=${encodedColor}'; event.stopPropagation();"
+                                        onclick="recordProductClick('local', '${baseSku}'); window.location.href='./produits/${view}?pid=${product.id}&selectedColor=${encodedColor}'; event.stopPropagation();"
                                     >`;
                 });
               }
@@ -514,6 +584,8 @@ document.addEventListener("DOMContentLoaded", function () {
             updateThumbnailNavVisibility(uniqueCardId);
           });
         });
+
+        sortProductCardsByPopularity(productContainer);
 
         let supplierSelect = document.querySelector("#supplier");
         if (data.suppliers && supplierSelect) {
@@ -974,7 +1046,11 @@ function initInfiniteScroll(currentPage, totalProducts, productsPerPage) {
 
                 const card = document.createElement("div");
                 card.className = `product-card ${activeHtml}`;
-                card.onclick = () => (window.location.href = cardRedirectUrl);
+                card.dataset.popularityKey = `local:${baseSku.toUpperCase()}`;
+                card.onclick = () => {
+                  recordProductClick("local", baseSku);
+                  window.location.href = cardRedirectUrl;
+                };
 
                 card.innerHTML = `
                 <div class="thumbnail-wrapper" data-sku="${uniqueCardId}" data-real-sku="${baseSku}" data-prefix="${targetPrefix}">
@@ -1029,7 +1105,7 @@ function initInfiniteScroll(currentPage, totalProducts, productsPerPage) {
                         alt="Image de la couleur ${safeColor}"
                         loading="lazy" 
                         onerror="this.onerror=null; this.src='./static-resources/default/products/introuvable-point-interogation.webp';"
-                        onclick="window.location.href='./produits/${view}?pid=${product.id}&selectedColor=${encodedColor}'; event.stopPropagation();"
+                        onclick="recordProductClick('local', '${baseSku}'); window.location.href='./produits/${view}?pid=${product.id}&selectedColor=${encodedColor}'; event.stopPropagation();"
                     >`;
                     });
                   }
@@ -1043,6 +1119,7 @@ function initInfiniteScroll(currentPage, totalProducts, productsPerPage) {
               });
             });
 
+            sortProductCardsByPopularity(productContainer);
             nextPage++;
             loadingNext = false;
             if (nextPage > pageCount) {
