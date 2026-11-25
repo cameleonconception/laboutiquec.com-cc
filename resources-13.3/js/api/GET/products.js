@@ -160,7 +160,7 @@ async function loadSageProducts(
                     data-current-thumb="1"
                     loading="lazy" 
                     onload="this.classList.add('loaded'); if(this.previousElementSibling) this.previousElementSibling.style.display='none';" 
-                    onerror="this.src='./static-resources/default/products/introuvable.webp'; this.classList.add('loaded'); if(this.previousElementSibling) this.previousElementSibling.style.display='none';">
+                    onerror="this.onerror=null; this.src='./static-resources/default/products/introuvable.webp'; this.classList.add('loaded'); if(this.previousElementSibling) this.previousElementSibling.style.display='none';">
                 
                 <div class='thumb-nav-container' style="display:none;">
                     <button class="thumb-nav thumb-prev disabled" onclick="switchThumbnailOnDemand('${baseSku}', -1); event.stopPropagation();">&lt;</button>
@@ -358,7 +358,7 @@ document.addEventListener("DOMContentLoaded", function () {
                             <button onclick='searchProduct()'>Filtrer</button>
                         </div>
                     </details>
-                    <input id='searchBar' type='search' placeholder='Rechercher...' value='${query}'>
+                    <input id='searchBar' type='search' placeholder='Rechercher un produit ou un SKU...' value='${query}'>
                     <button onclick='searchProduct()'>Filtrer</button>
                     <a class='toHideInBigScreen' href='./produits'>Supprimer les filtres</a>
                     <img onclick='window.location.href="./produits"' class='icons' src='static-resources/default/icons/black/reload.png'>
@@ -460,7 +460,7 @@ document.addEventListener("DOMContentLoaded", function () {
                                     data-current-thumb="1"
                                     loading="lazy" 
                                     onload="this.classList.add('loaded'); if(this.previousElementSibling) this.previousElementSibling.style.display='none';" 
-                                    onerror="this.src='./static-resources/default/products/introuvable.webp'; this.classList.add('loaded'); if(this.previousElementSibling) this.previousElementSibling.style.display='none';">
+                                    onerror="this.onerror=null; this.src='./static-resources/default/products/introuvable.webp'; this.classList.add('loaded'); if(this.previousElementSibling) this.previousElementSibling.style.display='none';">
                                 
                                 <div class='thumb-nav-container'>
                                     <button class="thumb-nav thumb-prev disabled" onclick="switchThumbnailOnDemand('${uniqueCardId}', -1); event.stopPropagation();">&lt;</button>
@@ -503,6 +503,7 @@ document.addEventListener("DOMContentLoaded", function () {
                                         src="static-resources/products/colors/${encodedColor}.webp" 
                                         alt="Image de la couleur ${safeColor}"
                                         loading="lazy" 
+                                        onerror="this.onerror=null; this.src='./static-resources/default/products/introuvable-point-interogation.webp';"
                                         onclick="window.location.href='./produits/${view}?pid=${product.id}&selectedColor=${encodedColor}'; event.stopPropagation();"
                                     >`;
                 });
@@ -746,7 +747,8 @@ function addNewCategoryBadge(value, type) {
     const safeValue = escapeHTML(value);
     imageHtml = `<img title="${safeValue}" class="color-thumbnail-image"
             src="./static-resources/products/colors/${encodeURIComponent(value)}.webp"
-            alt="Couleur ${safeValue}" loading="lazy">`;
+            alt="Couleur ${safeValue}" loading="lazy"
+            onerror="this.onerror=null; this.src='./static-resources/default/products/introuvable-point-interogation.webp';">`;
   }
 
   const checkbox = Array.from(
@@ -1026,6 +1028,7 @@ function initInfiniteScroll(currentPage, totalProducts, productsPerPage) {
                         src="static-resources/products/colors/${encodedColor}.webp" 
                         alt="Image de la couleur ${safeColor}"
                         loading="lazy" 
+                        onerror="this.onerror=null; this.src='./static-resources/default/products/introuvable-point-interogation.webp';"
                         onclick="window.location.href='./produits/${view}?pid=${product.id}&selectedColor=${encodedColor}'; event.stopPropagation();"
                     >`;
                     });

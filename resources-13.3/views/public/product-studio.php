@@ -23,7 +23,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
 
 <main>
-     <section class="contentPage">
+     <section class="contentPage" data-super-admin="<?php echo $superAdmin ? 'true' : 'false'; ?>">
  <?php if($superAdmin){
     $personalizationPlaceholder = '[{"option":"Finissant 2025-2026","price":2}]';
     $encodedPlaceholder = htmlspecialchars($personalizationPlaceholder, ENT_QUOTES);

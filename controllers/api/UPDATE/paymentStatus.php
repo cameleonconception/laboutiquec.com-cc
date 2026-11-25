@@ -6,9 +6,24 @@
 
 $success_post_value = $_POST['success'] ?? '0'; 
 
-// Correction : On force la conversion en booléen.
-// Si c'est '1', ça devient true. Si c'est '0', ça devient false.
-$success = (bool) $success_post_value; 
+// Correction : On force la conversion en boolï¿½en.
+// Si c'est '1', ï¿½a devient true. Si c'est '0', ï¿½a devient false.
+$success = $success_post_value === '1';
+
+if (!in_array($success_post_value, ['0', '1'], true)) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Valeur de statut de paiement invalide.']);
+    exit;
+}
+
+if ($success) {
+    http_response_code(403);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Le statut payÃ© doit Ãªtre confirmÃ© cÃ´tÃ© serveur par le fournisseur de paiement.'
+    ]);
+    exit;
+}
 
 $id = $_POST['id'] ?? null;
 $paymentError = $_POST['paymentError'] ?? null;
@@ -20,7 +35,7 @@ $email = $_POST['email'] ?? null;
     
 
     
-    if ($success) { // Maintenant, ceci est un vrai booléen, true ou false
+    if ($success) { // Maintenant, ceci est un vrai boolï¿½en, true ou false
         $order = new Order();
         $order->updatePaymentId($paymentId, $id, $variantsToUpdate, $email, $paymentCardCompany, $paymentCardNumber);
         
@@ -29,6 +44,5 @@ $email = $_POST['email'] ?? null;
         $order->updatePaymentError($paymentError, $id, $paymentCardCompany, $paymentCardNumber); 
     }
 ?>
-
 
 

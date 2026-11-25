@@ -354,15 +354,24 @@ function updateProductImage(selectedColor) {
     const verticalContainer = document.getElementById('vertical-thumbnails-container');
     if (!slideshowContainer) return; 
 
+    const defaultImageUrl = '../static-resources/default/products/introuvable.webp';
+    const setImageFallback = (imageElement) => {
+        imageElement.onerror = () => {
+            imageElement.onerror = null;
+            imageElement.src = defaultImageUrl;
+        };
+    };
+
     slideshowContainer.innerHTML = '';
     if (verticalContainer) verticalContainer.innerHTML = '';
 
     // Mode "Aucune couleur sélectionnée"
     if (!selectedColor || selectedColor === "") {
-        const rawImgUrl = product.imgUrl || '../static-resources/products/default.jpg';
+        const rawImgUrl = product.imgUrl || defaultImageUrl;
         const defaultImgUrl = formatImageUrl(rawImgUrl); // <--- AJOUT ICI
         
         const imageElement = document.createElement('img');
+        setImageFallback(imageElement);
         imageElement.src = defaultImgUrl;
         imageElement.alt = `Image principale de ${product.name}`;
         imageElement.style.display = 'block';
@@ -422,12 +431,13 @@ function updateProductImage(selectedColor) {
         }
         
         if (!fallbackUrl) {
-            fallbackUrl = product.imgUrl || '../static-resources/products/default.jpg';
+            fallbackUrl = product.imgUrl || defaultImageUrl;
         }
 
         fallbackUrl = formatImageUrl(fallbackUrl); // <--- AJOUT ICI
 
         const imageElement = document.createElement('img');
+        setImageFallback(imageElement);
         imageElement.src = fallbackUrl;
         imageElement.alt = `Image du produit ${product.name} - ${selectedColor}`;
         imageElement.style.display = 'block';
@@ -440,6 +450,7 @@ function updateProductImage(selectedColor) {
             
             // 1. Image principale en grand
             const imageElement = document.createElement('img');
+            setImageFallback(imageElement);
             imageElement.src = currentImageUrl;
             imageElement.alt = `Image du produit, couleur ${selectedColor} vue ${imgData.position}`;
             imageElement.style.display = (index === 0) ? 'block' : 'none'; 
@@ -453,6 +464,7 @@ function updateProductImage(selectedColor) {
                 thumbWrapper.style.display = 'inline-block';
 
                 const thumbImg = document.createElement('img');
+                setImageFallback(thumbImg);
                 thumbImg.src = currentImageUrl;
                 thumbImg.className = 'side-thumbnail' + (index === 0 ? ' active' : '');
                 thumbImg.onclick = () => switchMainImage(index);
@@ -669,11 +681,11 @@ function displayProductDetails(product, container, similarProducts = []) {
                                         const thumbImg = prod.imgNames.find(img => img.includes('thumbnail-1'));
                                         targetImg = thumbImg ? thumbImg : prod.imgNames[0];
                                     }
-                                    const rawImgSrc = targetImg ? `../static-resources/products/${prod.sku}/${targetImg}` : '';
+                                    const rawImgSrc = targetImg ? `../static-resources/products/${prod.sku}/${targetImg}` : '../static-resources/default/products/introuvable.webp';
                                     const imgSrc = formatImageUrl(rawImgSrc, 300); // <--- AJOUT ICI
                                     return `
                                         <div class="similar-item" style="cursor: pointer;" onclick="window.location.href='./studio?sku=${prod.sku}'">
-                                            <img src="${imgSrc}" alt="${prod.name}" style="width: 100%; height: auto; margin-bottom:5px; border-radius: 6px;" />
+                                            <img src="${imgSrc}" alt="${prod.name}" style="width: 100%; height: auto; margin-bottom:5px; border-radius: 6px;" onerror="this.onerror=null; this.src='../static-resources/default/products/introuvable.webp';" />
                                             <span>${prod.name}</span>
                                             <span class="light">${prod.sku}</span>
                                         </div>
@@ -698,9 +710,16 @@ function displayProductDetails(product, container, similarProducts = []) {
         if (textBlock) {
             textBlock.innerHTML = `
                 <h1 class="title">${product.name}</h1>
+                <p class='light supplier-name' style="margin-top:-15px;"></p>
                 <p class='light' style="margin-top:-10px;">${product.sku}</p>
                 <p>${decodeBase64UTF8(product.description)}</p>
             `;
+            const supplierName = textBlock.querySelector('.supplier-name');
+            if (supplierName && product.supplier?.name) {
+                supplierName.textContent = product.supplier.name;
+            } else {
+                supplierName?.remove();
+            }
             textBlock.style.opacity = '1';
         }
 
@@ -751,7 +770,7 @@ if (product.colors && product.colors.length > 0) {
     product.colors.forEach(color => {
         const rawUrl = (product.colorImages && product.colorImages[color]) 
             ? product.colorImages[color] 
-            : (product.imgUrl || '../static-resources/products/default.jpg');
+            : (product.imgUrl || '../static-resources/default/products/introuvable-point-interogation.webp');
         
         const imgUrl = formatImageUrl(rawUrl, 300); // <--- AJOUT ICI
 
@@ -759,7 +778,8 @@ if (product.colors && product.colors.length > 0) {
             <div class="color-thumbnail-wrapper" onclick="selectProductColor('${color}');">
                 <img title="${color}" class="color-thumbnail-image"
                     src="${imgUrl}" 
-                    alt="Couleur ${color}" loading="lazy">
+                    alt="Couleur ${color}" loading="lazy"
+                    onerror="this.onerror=null; this.src='../static-resources/default/products/introuvable-point-interogation.webp';">
             </div>`;
     });
 }

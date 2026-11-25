@@ -268,8 +268,9 @@ public function getProducts($page, $query, $categories, $colors, $themes = []) {
     $stmtRole = $pdo->prepare("SELECT role FROM users WHERE id = ?");
     $stmtRole->execute([$userId]);
     $userRole = $stmtRole->fetchColumn();
+    $isSuperAdmin = (int)$userRole === 2;
 
-    if ((int)$userRole === 2) {
+    if ($isSuperAdmin) {
         $whereClauses[] = "P.active IN (0, 1)";
     } else {
         $whereClauses[] = "P.active = 1";
@@ -343,6 +344,11 @@ public function getProducts($page, $query, $categories, $colors, $themes = []) {
 
     // PRIORITÉ 1 : La Recherche Textuelle ($query)
     if (!empty($queryClean)) {
+        $searchConditions[] = "P.sku = ?";
+        $params[] = $queryClean;
+        $scoreCalculations[] = "IF(P.sku = ?, 1000, 0)";
+        $scoreParams[] = $queryClean;
+
         // Normalisation : remplacement des apostrophes et tirets par des espaces pour le découpage
         $normalizedQuery = preg_replace('/[\'’\-\_]/u', ' ', $queryClean);
         $words = array_filter(explode(' ', $normalizedQuery), fn($w) => mb_strlen(trim($w)) > 1);
@@ -351,24 +357,32 @@ public function getProducts($page, $query, $categories, $colors, $themes = []) {
             $wordConditions = [];
             foreach ($words as $word) {
                 $wordParam = "%" . $word . "%";
-                $wordConditions[] = "(
-                    P.name LIKE ? 
-                    OR P.description LIKE ? 
-                    OR P.sku LIKE ? 
-                    OR P.supplierId IN (SELECT id FROM suppliers WHERE name LIKE ?)
-                )";
-                array_push($params, $wordParam, $wordParam, $wordParam, $wordParam);
+                $wordCondition = "(
+                    P.name LIKE ?
+                    OR P.description LIKE ?
+                    OR P.sku LIKE ?";
+                array_push($params, $wordParam, $wordParam, $wordParam);
+                if ($isSuperAdmin) {
+                    $wordCondition .= "
+                    OR P.supplierId IN (SELECT id FROM suppliers WHERE name LIKE ?)";
+                    $params[] = $wordParam;
+                }
+                $wordConditions[] = $wordCondition . ")";
             }
             $searchConditions[] = "(" . implode(" AND ", $wordConditions) . ")";
         } else {
             $searchParam = "%" . $queryClean . "%";
-            $searchConditions[] = "(
-                P.name LIKE ? 
-                OR P.description LIKE ? 
-                OR P.sku LIKE ? 
-                OR P.supplierId IN (SELECT id FROM suppliers WHERE name LIKE ?)
-            )";
-            array_push($params, $searchParam, $searchParam, $searchParam, $searchParam);
+            $searchCondition = "(
+                P.name LIKE ?
+                OR P.description LIKE ?
+                OR P.sku LIKE ?";
+            array_push($params, $searchParam, $searchParam, $searchParam);
+            if ($isSuperAdmin) {
+                $searchCondition .= "
+                OR P.supplierId IN (SELECT id FROM suppliers WHERE name LIKE ?)";
+                $params[] = $searchParam;
+            }
+            $searchConditions[] = $searchCondition . ")";
         }
 
         // SCORE DE PERTINENCE
@@ -488,7 +502,7 @@ public function getProducts($page, $query, $categories, $colors, $themes = []) {
     foreach ($products as &$product) {
         $product['supplier'] = [
             'id'             => $product['supplierId'],
-            'name'           => $product['supp_name'],
+            'name'           => $isSuperAdmin ? $product['supp_name'] : null,
             'shippingCost'   => $product['supp_shippingCost'],
             'freeShippingAt' => $product['supp_freeShippingAt']
         ];
@@ -514,7 +528,7 @@ public function getProducts($page, $query, $categories, $colors, $themes = []) {
 // -------------------------------------------------------------------------
     // RÉCUPÉRATION BDD LOCALE ET NORMALISATION fr_name / en_name
     // -------------------------------------------------------------------------
-   $baseWhereRole = ((int)$userRole === 2) ? "P.active IN (0, 1)" : "P.active = 1";
+   $baseWhereRole = $isSuperAdmin ? "P.active IN (0, 1)" : "P.active = 1";
 
     $rawCategories = $pdo->query("SELECT DISTINCT C.id, C.name FROM categories C JOIN product_category pc ON C.id = pc.category_id JOIN products P ON pc.product_id = P.id WHERE $baseWhereRole ORDER BY C.name ASC")->fetchAll(PDO::FETCH_ASSOC);
 
@@ -534,7 +548,9 @@ public function getProducts($page, $query, $categories, $colors, $themes = []) {
 
     $allColors = $pdo->query("SELECT DISTINCT Cl.id, Cl.name FROM colors Cl JOIN product_size_color_price pscp ON Cl.id = pscp.color_id JOIN products P ON pscp.product_id = P.id WHERE $baseWhereRole ORDER BY Cl.name ASC")->fetchAll(PDO::FETCH_ASSOC);
     $allSizes = $pdo->query("SELECT DISTINCT S_size.id, S_size.name FROM sizes S_size JOIN product_size_color_price pscp ON S_size.id = pscp.size_id JOIN products P ON pscp.product_id = P.id WHERE $baseWhereRole ORDER BY S_size.name ASC")->fetchAll(PDO::FETCH_ASSOC);
-    $allSuppliers = $pdo->query("SELECT id, name, shippingCost, freeShippingAt FROM suppliers ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
+    $allSuppliers = $isSuperAdmin
+        ? $pdo->query("SELECT id, name, shippingCost, freeShippingAt FROM suppliers ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC)
+        : [];
 
     // -------------------------------------------------------------------------
     // CHARGEMENT DES CATÉGORIES ET THÈMES SAGE AVEC fr_name, en_name ET origin ('sage')
@@ -1717,9 +1733,10 @@ public function getProductDetails($pid, $sku)
     $stmtRole = $pdo->prepare("SELECT role FROM users WHERE id = ?");
     $stmtRole->execute([$userId]);
     $userRole = (int)$stmtRole->fetchColumn();
+    $isSuperAdmin = $userRole === 2;
 
     // 1. Clause Active
-    $activeClause = ($userRole === 2) ? "P.active IN (0, 1)" : "P.active = 1";
+    $activeClause = $isSuperAdmin ? "P.active IN (0, 1)" : "P.active = 1";
 
     if ($pid === null && $sku !== null) {
         $sqlPID = "SELECT id FROM products WHERE sku = :sku";
@@ -1780,7 +1797,7 @@ public function getProductDetails($pid, $sku)
     // Objet Supplier rattaché au produit
     $product['supplier'] = [
         'id'             => $product['supplierId'],
-        'name'           => $product['supp_name'],
+        'name'           => $isSuperAdmin ? $product['supp_name'] : null,
         'shippingCost'   => $product['supp_shippingCost'],
         'freeShippingAt' => $product['supp_freeShippingAt']
     ];
@@ -1831,7 +1848,9 @@ public function getProductDetails($pid, $sku)
     $allSizes = $pdo->query("SELECT id, name FROM sizes ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
     
     // NOUVEAU : Récupération de tous les fournisseurs
-    $allSuppliers = $pdo->query("SELECT id, name, shippingCost, freeShippingAt FROM suppliers ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
+    $allSuppliers = $isSuperAdmin
+        ? $pdo->query("SELECT id, name, shippingCost, freeShippingAt FROM suppliers ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC)
+        : [];
 // --- PRODUITS SIMILAIRES (Triage par similarité SKU + Catégories en commun) ---
     $currentSku = $product['sku'];
 

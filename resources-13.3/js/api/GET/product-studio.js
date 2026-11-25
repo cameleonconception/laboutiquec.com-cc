@@ -305,6 +305,14 @@ function updateProductImage(selectedColor) {
     const verticalContainer = document.getElementById('vertical-thumbnails-container');
     if (!slideshowContainer) return; 
 
+    const defaultImageUrl = '../static-resources/default/products/introuvable.webp';
+    const setImageFallback = (imageElement) => {
+        imageElement.onerror = () => {
+            imageElement.onerror = null;
+            imageElement.src = defaultImageUrl;
+        };
+    };
+
     slideshowContainer.innerHTML = '';
     if (verticalContainer) verticalContainer.innerHTML = '';
     
@@ -347,11 +355,20 @@ function updateProductImage(selectedColor) {
         }
     }
 
+    if (uniqueImages.length === 0) {
+        const imageElement = document.createElement('img');
+        imageElement.src = defaultImageUrl;
+        imageElement.alt = `Image du produit ${product.name}`;
+        imageElement.style.display = 'block';
+        slideshowContainer.appendChild(imageElement);
+    }
+
     uniqueImages.forEach((imgData, index) => {
         const currentImageUrl = `../static-resources/products/${product.sku}/${imgData.fullName}`;
         
         // Image en grand
         const imageElement = document.createElement('img');
+        setImageFallback(imageElement);
         imageElement.src = currentImageUrl;
         imageElement.alt = isValidColor 
             ? `Image du produit, couleur ${selectedColor} vue ${imgData.position}`
@@ -368,6 +385,7 @@ function updateProductImage(selectedColor) {
             thumbWrapper.style.display = 'inline-block';
 
             const thumbImg = document.createElement('img');
+            setImageFallback(thumbImg);
             thumbImg.src = currentImageUrl;
             thumbImg.className = 'side-thumbnail' + (index === 0 ? ' active' : '');
             thumbImg.onclick = () => switchMainImage(index);
@@ -589,14 +607,14 @@ function displayProductDetails(product, container, similarProducts) {
                     targetImg = thumbImg ? thumbImg : prod.imgNames[0];
                 }
 
-                const imgSrc = targetImg ? `../static-resources/products/${prod.sku}/${targetImg}` : '';
+                const imgSrc = targetImg ? `../static-resources/products/${prod.sku}/${targetImg}` : '../static-resources/default/products/introuvable.webp';
 
                 return `
                     <div class="similar-item" 
                          style="cursor: pointer;" 
                          onclick="window.location.href='./studio?sku=${prod.sku}'"
                     >
-                        <img src="${imgSrc}" alt="${prod.name}" style="width: 100%; height: auto; margin-bottom:5px; border-radius: 6px;" />
+                        <img src="${imgSrc}" alt="${prod.name}" style="width: 100%; height: auto; margin-bottom:5px; border-radius: 6px;" onerror="this.onerror=null; this.src='../static-resources/default/products/introuvable.webp';" />
                         <span class="" >${prod.name}</span>
                         <span class="light" >${prod.sku}</span>
                     </div>
@@ -620,11 +638,19 @@ function displayProductDetails(product, container, similarProducts) {
     // 2. CHARGEMENT DU TEXTE ET DES OPTIONS DE PERSONNALISATION
     setTimeout(() => {
         const textBlock = document.getElementById('text-info-block');
+        const isSuperAdmin = document.querySelector('.contentPage')?.dataset.superAdmin === 'true';
         textBlock.innerHTML = `
             <h1 class="title">${product.name}</h1>
-            <p class='light' style="margin-top:-10px;">${product.sku}</p>
+            <p class='light supplier-name' style="margin-top:-10px;"></p>
+            <p class='light' style="margin-top:-15px;">${product.sku}</p>
             <p>${decodeBase64UTF8(product.description)}</p>
         `;
+        const supplierName = isSuperAdmin ? textBlock.querySelector('.supplier-name') : null;
+        if (supplierName && product.supplier?.name) {
+            supplierName.textContent = product.supplier.name;
+        } else {
+            textBlock.querySelector('.supplier-name')?.remove();
+        }
         textBlock.style.opacity = '1';
         document.getElementById('dynamic-controls-block').style.opacity = '1';
 
@@ -687,6 +713,7 @@ function displayProductDetails(product, container, similarProducts) {
                     <img title='${color}' class="color-thumbnail-image"
                         src="../static-resources/products/colors/${color}.webp" 
                         alt="Couleur ${color}" loading="lazy" 
+                        onerror="this.onerror=null; this.src='../static-resources/default/products/introuvable-point-interogation.webp';"
                         onclick="document.getElementById('color-select').value='${color}'; updateProductSize('${color}');">`;
             });
         }
